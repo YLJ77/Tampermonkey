@@ -35,7 +35,7 @@ function Ticket(){
     var $performTime = eleObj.$performTime;
     var $price = eleObj.$price;
     
-    _this.doSelect($performTime,'已选择演出时间','演出时间为未可选择状态',_this.timeIndex).then(msg=>{
+    _this.doSelect($performTime,'已选择演出时间','演出时间为未可选择状态',_this.performIndex).then(msg=>{
       _this.doSelect($price,'已选择票价','票价为未可选择状态',_this.priceIndex).then(msg=>{
           _this.findEle(['.ipt.ipt-num'],'寻找门票数量输入框').then($ticketAmount=>{
             $ticketAmount.eq(0).val(_this.ticketAmount);
@@ -55,10 +55,10 @@ function Ticket(){
 };
 
 Ticket.prototype = {
-  ticketAmount: 4,    //购买门票的数量
-  certification: true,//是否要实名认证
-  timeIndex: 0,        //从0开始算起，选择第几个演出时间
-  priceIndex: 0,       //从0开始算起，买第几个价位
+  ticketAmount: $.cookie('ticketAmount'),    //购买门票的数量
+  certification: $.cookie('certification') === 'true',//是否要实名认证
+  performIndex: $.cookie('performIndex'),        //从0开始算起，选择第几个演出时间
+  priceIndex: $.cookie('priceIndex'),       //从0开始算起，买第几个价位
   doSelect: ($performTime,log,statusLog,priceIndex)=>{
     return new Promise((resolve,reject)=>{
       var clock = setInterval(()=>{
@@ -151,6 +151,17 @@ function PerformList() {
 }
 
 PerformList.prototype = {
+  conf: {
+    performIndex: 0,
+    preTagAmount: 1,
+    ticketAmount: 2,
+    priceIndex: 0,
+    dateIndex: 0,
+    flashSaleTime: '00:00',
+    startTagTime: 50,
+    startTagGapTime: 1000,
+    startTagAmount: 40
+  },
   renderBase() {
    var $bar = $("<div class='btn-group'>" +
         "<button class='btn btn-default' type='button' id='setting'>设置</button>" +
@@ -163,13 +174,13 @@ PerformList.prototype = {
     })
    .find('#setting').on('click',this.setting)
    .end()
-   .find('#startGrabbing').on('click',this.start.bind(this,+$.cookie('preTagAmount')))
+   .find('#startGrabbing').on('click',this.start.bind(this))
    .end();
     //console.log($bar.find('#setting').on('click',this.setting).end())
     
     $('body').prepend($bar);
   },
-  start(amount) {
+  openTag(amount) {
     var performIndex = +$.cookie('performIndex');
     var $li = $('#performList li').eq(performIndex);
     if ($li.find('.btn_mbook').length) {
@@ -188,24 +199,72 @@ PerformList.prototype = {
       })(i)
     }
   },
-  countdown() {
-    var clock = setInterval(()=>{
-      var countdownTagTime = +$.cookie('countdownTagTime');
-      var countdownTagGapTime = +$.cookie('countdownTagGapTime');
-      var countdownTagAmount = +$.cookie('countdownTagAmount');
-      var flashSaleTime = $.cookie('flashSaleTime').split(':');
-      if (flashSaleTime.length === 1) flashSaleTime = $.cookie('flashSaleTime').split('：');
-      var saleHour = +flashSaleTime[0];
-      var saleMin = +flashSaleTime[1];
-      var now = new Date();
-      var curHour = now.getHours();
-      var curMin = now.getMinutes();
-      var curSec = now.getSeconds();
-      if (saleHour === curHour && (saleMin-1) === curMin && curSec === countdownTagTime) {
-        clearInterval(clock);
-        this.start(countdownTagAmount);
+  getTime(time) {
+    var now = new Date();
+    var curHour = now.getHours();
+    var curMin = now.getMinutes();
+    var curSec = now.getSeconds();
+    var flashSaleTime = time ? time : $.cookie('flashSaleTime');
+    var flashSaleArr = flashSaleTime.split(':');
+    if (flashSaleArr.length === 1) flashSaleArr = flashSaleTime.split('：');
+    var saleHour = +flashSaleArr[0];
+    var saleMin = +flashSaleArr[1];
+    
+    return {
+      now: {
+        h: curHour,
+        m: curMin,
+        s: curSec,
+        hmMs: curHour * 60 * 60 + curMin * 60,
+        sec: curHour * 60 * 60 + curMin * 60 + curSec
+      },
+      sale: {
+        h: saleHour,
+        m: saleMin,
+        sec: saleHour * 60 * 60 + saleMin * 60
       }
-    }.bind(this),1000);
+    };
+  },
+  formatTime(sec) {
+    var h = Math.floor(sec / (60 * 60) );
+    var m = Math.floor((sec - h * 60 * 60) / 60);
+    var s = sec - h * 60 * 60 - m * 60;
+    
+    var toString= num=>{
+      if (num < 1) {
+        num = '00'
+      } else if (num <= 9) {
+        num = '' + num;
+        num = '0' + num;
+      }
+      return num;
+    }
+    h = toString(h);
+    m = toString(m);
+    s = toString(s);
+    return [h,m,s].join(':');
+  },
+  start(e) {
+    $(e.target).attr('disabled',true);
+    this.openTag(+$.cookie('preTagAmount'));
+    var clock = setInterval((()=>{
+      var startTagTime = +$.cookie('startTagTime');
+      var startTagGapTime = +$.cookie('startTagGapTime');
+      var startTagAmount = +$.cookie('startTagAmount');
+      
+      var time = this.getTime();
+      var saleSec = time.sale.sec;
+      var curSec = time.now.sec;
+      var diffSec = saleSec - curSec;
+      var saleFormatTime = this.formatTime(diffSec);
+      var openTagFormatTime = this.formatTime(diffSec + startTagTime - 60);
+      
+      console.info(`距离抢购时间还有：${saleFormatTime} 距离再次打开标签的时间还有：${openTagFormatTime}`);
+      if (diffSec === (60 - startTagTime)) {
+        clearInterval(clock);
+        this.openTag(startTagAmount);
+      }
+    }).bind(this),1000);
   },
   setting() {
     $('#myModal').modal('show');
@@ -231,6 +290,48 @@ PerformList.prototype = {
   },
   appendModal() {
     var _this = this;
+    var option = [
+      {
+        text: '演唱会索引',
+        id: 'performIndex'
+      },
+      {
+        text: '预备标签数量',
+        id: 'preTagAmount'
+      },
+      {
+        text: '购买门票数',
+        id: 'ticketAmount'
+      },
+      {
+        text: '票价索引',
+        id: 'priceIndex'
+      },
+      {
+        text: '演出日期索引',
+        id: 'dateIndex'
+      },
+      {
+        text: '抢购时间',
+        id: 'flashSaleTime'
+      },
+      {
+        text: '临倒计时结束打开标签的时间(秒)',
+        id: 'startTagTime'
+      },
+      {
+        text: '临倒计时结束打开标签的时间间隔(毫秒)',
+        id: 'startTagGapTime'
+      },
+      {
+        text: '临倒计时结束打开标签的数量',
+        id: 'startTagAmount'
+      }
+    ];
+    var optionDom = '';
+    option.forEach((item,index)=>{
+      optionDom += `<div class='form-group'><label class='control-label'>${item.text}:</label><input type='text' class='form-control' id='${item.id}' value=''></div>`;
+    });
     var $modal = $("<div class='modal fade' id='myModal' tabindex='-1' style='z-index:99999;'>" +
                   "<div class='modal-dialog'>" +
                     "<div class='modal-content'>" +
@@ -239,51 +340,17 @@ PerformList.prototype = {
                       "</div>" +
                       "<div class='modal-body'>" +
                         "<form>" +
-                          "<div class='form-group'>" +
-                            "<label for='message' class='control-label'>演唱会索引:</label>" +
-                            "<input type='text' class='form-control' id='performIndex' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-times' class='control-label'>预备标签数量:</label>" +
-                            "<input type='text' class='form-control' id='preTagAmount' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='sent-times' class='control-label'>购买门票数:</label>" +
-                            "<input type='text' class='form-control' id='ticketAmount' value=''>" +
-                          "</div>" +
+                          optionDom +
                           "<div class='checkbox'>" +
                              "<label>" +
-                               "<input type='checkbox' id='certification' value='false'> 是否实名认证" +
+                               "<input type='checkbox' id='certification' value='false'>实名认证" +
                              "</label>" +
-                          "</div>" +
-                           "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>票价索引:</label>" +
-                            "<input type='text' class='form-control' id='priceIndex' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>演出日期索引:</label>" +
-                            "<input type='text' class='form-control' id='dateIndex' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>抢购时间(00:00):</label>" +
-                            "<input type='text' class='form-control' id='flashSaleTime' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>临倒计时结束打开标签的时间(秒):</label>" +
-                            "<input type='text' class='form-control' id='countdownTagTime' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>临倒计时结束打开标签的时间间隔(毫秒):</label>" +
-                            "<input type='text' class='form-control' id='countdownTagGapTime' value=''>" +
-                          "</div>" +
-                          "<div class='form-group'>" +
-                            "<label for='send-index' class='control-label'>临倒计时结束打开标签的数量:</label>" +
-                            "<input type='text' class='form-control' id='countdownTagAmount' value=''>" +
                           "</div>" +
                         "</form>" +
                       "</div>" +
                       "<div class='modal-footer'>" +
                         "<button type='button' class='btn btn-default' data-dismiss='modal'>关闭</button>" +
+                        "<button type='button' class='btn btn-default' id='reset'>重置</button>" +
                         "<button type='button' class='btn btn-primary' id='save'>保存</button>" +
                       "</div>" +
                     "</div>" +
@@ -291,11 +358,12 @@ PerformList.prototype = {
                 "</div>");
     
     $modal.find('#save').on('click', this.saveSetting.bind(this));
+    $modal.find('#reset').on('click', this.reset.bind(this));
     $modal.find('#certification').on('click', function(){
       var value = ($(this).val() === 'false') ? true : false;
       $(this).val(value);
     })
-    $modal.on('show.bs.modal', this.settingInit);
+    $modal.on('show.bs.modal', this.settingInit.bind(this));
     
     $('body').prepend($modal);
   },
@@ -307,11 +375,11 @@ PerformList.prototype = {
     var priceIndex = $('#priceIndex').val();
     var dateIndex = $('#dateIndex').val();
     var flashSaleTime = $('#flashSaleTime').val();
-    var countdownTagTime = $('#countdownTagTime').val();
-    var countdownTagGapTime = $('#countdownTagGapTime').val();
-    var countdownTagAmount = $('#countdownTagAmount').val();
+    var startTagTime = $('#startTagTime').val();
+    var startTagGapTime = $('#startTagGapTime').val();
+    var startTagAmount = $('#startTagAmount').val();
     var verifyEmpty = '';
-    var valid = true;
+    
     if (performIndex === '') verifyEmpty = '演唱会索引不能为空';
     if (ticketAmount === '') verifyEmpty = '购买门票数不能为空';
     if (priceIndex === '') verifyEmpty = '票价索引不能为空';
@@ -319,7 +387,16 @@ PerformList.prototype = {
     if (flashSaleTime === '') verifyEmpty = '抢购时间不能为空';
     if (verifyEmpty !== '') {
       alert(verifyEmpty);
-      valid = false;
+      return false;
+    }
+    
+    var time = this.getTime(flashSaleTime);
+    var nowSec = time.now.sec;
+    var saleSec = time.sale.sec;
+    
+    if (saleSec < nowSec) {
+      alert('抢购时间不能小于当前时间');
+      return false;
     }
 
     var pattern = /^\d+$/;
@@ -329,34 +406,33 @@ PerformList.prototype = {
     if (!(pattern.test(ticketAmount))) verifyNum = '购买门票数只能输入数字';
     if (!(pattern.test(priceIndex))) verifyNum = '票价索引只能输入数字';
     if (!(pattern.test(dateIndex))) verifyNum = '演出日期索引只能输入数字';
-    if (!(pattern.test(countdownTagTime))) verifyNum = '临倒计时结束打开标签的时间只能输入数字';
-    if (!(pattern.test(countdownTagGapTime))) verifyNum = '临倒计时结束打开标签的时间间隔只能输入数字';
-    if (!(pattern.test(countdownTagAmount))) verifyNum = '临倒计时结束打开标签的数量只能输入数字';
+    if (!(pattern.test(startTagTime))) verifyNum = '临倒计时结束打开标签的时间只能输入数字';
+    if (!(pattern.test(startTagGapTime))) verifyNum = '临倒计时结束打开标签的时间间隔只能输入数字';
+    if (!(pattern.test(startTagAmount))) verifyNum = '临倒计时结束打开标签的数量只能输入数字';
     if (verifyNum !== '') {
       alert(verifyNum);
-      valid = false;
+      return false;
     }
 
     if (+performIndex > 9) {
       alert('演唱会索引不能大于9');
-      valid = false;
+      return false;
     }
 
     if (performIndex < 0 || preTagAmount < 0 || ticketAmount < 0 || priceIndex < 0 || dateIndex < 0) {
       alert('所填数字不能小于0');
-      valid = false;
+      return false;
     }
     
-    if (!(/^\d\d(:|：)\d\d$/.test(flashSaleTime))) {
+    if (!(/^\d{1,2}(:|：)\d{1,2}$/.test(flashSaleTime))) {
       alert('抢购时间格式不正确');
-      valid = false;
+      return false;
     }
     
-    if (+preTagAmount > 100 || +countdownTagAmount > 100) {
+    if (+preTagAmount > 100 || +startTagAmount > 100) {
       alert('预备标签数量不能大于100');
-      valid = false;
+      return false;
     }
-    if (!valid) return false;
     return {
       performIndex,
       preTagAmount,
@@ -365,48 +441,22 @@ PerformList.prototype = {
       priceIndex,
       dateIndex,
       flashSaleTime,
-      countdownTagTime,
-      countdownTagGapTime,
-      countdownTagAmount
+      startTagTime,
+      startTagGapTime,
+      startTagAmount
     };
+  },
+  reset() {
+    for (var key in this.conf) $(`#${key}`).val(this.conf[key]);
   },
   saveSetting() {
     var data = this.validateSetting();
     if (!data) return false;
-    $.cookie('performIndex', data.performIndex, { expires: 1000, path: '/' });
-    $.cookie('preTagAmount', data.preTagAmount, { expires: 1000, path: '/' });
-    $.cookie('ticketAmount', data.ticketAmount, { expires: 1000, path: '/' });
-    $.cookie('certification', data.certification, { expires: 1000, path: '/' });
-    $.cookie('priceIndex', data.priceIndex, { expires: 1000, path: '/' });
-    $.cookie('dateIndex', data.dateIndex, { expires: 1000, path: '/' });
-    $.cookie('flashSaleTime', data.flashSaleTime, { expires: 1000, path: '/' });
-    $.cookie('countdownTagTime', data.countdownTagTime, { expires: 1000, path: '/' });
-    $.cookie('countdownTagGapTime', data.countdownTagGapTime, { expires: 1000, path: '/' });
-    $.cookie('countdownTagAmount', data.countdownTagAmount, { expires: 1000, path: '/' });
+    for (var key in data) $.cookie(key, data[key], { expires: 1000, path: '/' });
     $('#myModal').modal('hide');
   },
   settingInit() {
-    var performIndex = $.cookie('performIndex') || 0;
-    var preTagAmount = $.cookie('preTagAmount') || 1;
-    var ticketAmount = $.cookie('ticketAmount') || 2;
-    var certification = $.cookie('certification') || false;
-    var priceIndex = $.cookie('priceIndex') || 0;
-    var dateIndex = $.cookie('dateIndex') || 0;
-    var flashSaleTime = $.cookie('flashSaleTime') || '';
-    var countdownTagTime = $.cookie('countdownTagTime') || 50;
-    var countdownTagGapTime = $.cookie('countdownTagGapTime') || 1000;
-    var countdownTagAmount = $.cookie('countdownTagAmount') || 40;
-    
-    $('#performIndex').val(performIndex);
-    $('#preTagAmount').val(preTagAmount);
-    $('#ticketAmount').val(ticketAmount);
-    $('#certification').attr('checked',certification);
-    $('#priceIndex').val(priceIndex);
-    $('#dateIndex').val(dateIndex);
-    $('#flashSaleTime').val(flashSaleTime);
-    $('#countdownTagTime').val(countdownTagTime);
-    $('#countdownTagGapTime').val(countdownTagGapTime);
-    $('#countdownTagAmount').val(countdownTagAmount);
+    for (var key in this.conf) $(`#${key}`).val($.cookie(key) || this.conf[key]);
   },
 }
 
