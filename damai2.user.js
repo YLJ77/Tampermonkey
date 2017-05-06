@@ -6,7 +6,6 @@
 // @author       ljyang
 // @include      *piao.damai.cn*
 // @include      *trade.damai.cn*
-// @include      *damai.cn/projectlist.do*
 // @require      http://code.jquery.com/jquery-latest.js
 // @require      http://cdn.bootcss.com/jquery-cookie/1.4.1/jquery.cookie.js
 // @require      https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js
@@ -21,6 +20,7 @@ GM_addStyle (newCSS);
 
 function Ticket(){
   var _this = this;
+  new Controller();
   async function collectEle(){
     var $performTime = _this.findEle(['#performList .lst','.lst.lst-dis'],'寻找演出时间');
     var $price = _this.findEle(['#priceList .lst'],'寻找票价');
@@ -84,8 +84,6 @@ Ticket.prototype = {
         
         
         if ($timeBtn === null) {
-          //clearInterval(clock);
-          //reject('已售罄');
           console.warn(statusLog);
         }
       },1);
@@ -142,62 +140,62 @@ function Confirm() {
   }
 };
 
-function PerformList() {
-  var _this = this;
-  this.appendBootstrapCss();
-  this.formatList();
-  this.appendModal();
-  this.renderBase();
+function Controller() {
+  if (!this.isCopyPage()) {
+    this.appendBootstrapCss();
+    this.appendModal();
+    this.renderBase();
+  } else {
+    this.start();
+  }
 }
 
-PerformList.prototype = {
-  conf: {
-    performIndex: 0,
-    preTagAmount: 1,
-    ticketAmount: 2,
-    priceIndex: 0,
-    dateIndex: 0,
-    flashSaleTime: '00:00',
-    startTagTime: 50,
-    startTagGapTime: 1000,
-    startTagAmount: 40
+Controller.prototype = {
+  isCopyPage() {
+    return (window.location.href.indexOf('custom-copy') !== -1);
+  },
+  start() {
+    if ($.cookie('ticketPageAmount') === undefined) {
+      alert('请先保存设置');
+      return;
+    }
+    $('#startGrabbing').attr('disabled',true);
+    var openPageGapTime = $.cookie('openPageGapTime');
+    this.openTag(openPageGapTime);
+    this.closeTag();
   },
   renderBase() {
    var $bar = $("<div class='btn-group'>" +
         "<button class='btn btn-default' type='button' id='setting'>设置</button>" +
-        "<button class='btn btn-default' type='button' id='startGrabbing'>开始</button>" +
+        "<button class='btn btn-info' type='button' id='startGrabbing'>开始</button>" +
         "</div>")
     .css({
       position: 'fixed',
-      top: '50px',
-      left: '20px'
+      top: '70px',
+      left: '20px',
+      'z-index': 999
     })
    .find('#setting').on('click',this.setting)
    .end()
    .find('#startGrabbing').on('click',this.start.bind(this))
    .end();
-    //console.log($bar.find('#setting').on('click',this.setting).end())
     
     $('body').prepend($bar);
   },
-  openTag(amount) {
-    var performIndex = +$.cookie('performIndex');
-    var $li = $('#performList li').eq(performIndex);
-    if ($li.find('.btn_mbook').length) {
-      alert('预定登记无法抢购');
-      return;
-    }
-    var $btnBuy = $li.find('.btn_buy');
-    var $btnBooks = $li.find('.btn_books');
-    var $btn = ($btnBuy.length && $btnBuy) || ($btnBooks.length && $btnBooks);
-    
-    for (var i=0; i<amount; i++) {
-      (i=>{
-        setTimeout(()=>{
-          window.open($btn.eq(0).attr('href'));
-        },1000*i);
-      })(i)
-    }
+  openTag(timeSpan) {
+    var timeSpan = timeSpan || 1000;
+    setTimeout((()=>{
+      this.isCopyPage() ? window.open(window.location.href) : window.open(window.location.href+'?custom-copy');
+      
+    }).bind(this),timeSpan);
+  },
+  closeTag() {
+    var ticketPageAmount = +$.cookie('ticketPageAmount');
+    var openPageSpanTime = +$.cookie('openPageSpanTime');
+    var timeout = ticketPageAmount * openPageSpanTime;
+    setTimeout((()=>{
+      if (this.isCopyPage()) window.close();
+    }).bind(this),timeout);
   },
   getTime(time) {
     var now = new Date();
@@ -244,44 +242,8 @@ PerformList.prototype = {
     s = toString(s);
     return [h,m,s].join(':');
   },
-  start(e) {
-    $(e.target).attr('disabled',true);
-    this.openTag(+$.cookie('preTagAmount'));
-    var clock = setInterval((()=>{
-      var startTagTime = +$.cookie('startTagTime');
-      var startTagGapTime = +$.cookie('startTagGapTime');
-      var startTagAmount = +$.cookie('startTagAmount');
-      
-      var time = this.getTime();
-      var saleSec = time.sale.sec;
-      var curSec = time.now.sec;
-      var diffSec = saleSec - curSec;
-      var saleFormatTime = this.formatTime(diffSec);
-      var openTagFormatTime = this.formatTime(diffSec + startTagTime - 60);
-      
-      console.info(`距离抢购时间还有：${saleFormatTime} 距离再次打开标签的时间还有：${openTagFormatTime}`);
-      if (diffSec === (60 - startTagTime)) {
-        clearInterval(clock);
-        this.openTag(startTagAmount);
-      }
-    }).bind(this),1000);
-  },
   setting() {
     $('#myModal').modal('show');
-  },
-  formatList() {
-    this.findEle(['#performList'],'寻找演唱会列表').then($list=>{
-      $list.find('li').each((index,item)=>{
-        var $num = $('<span>'+index+'</span>').css({
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          color: 'red',
-          fontSize: '36px'
-        });
-        $(item).prepend($num);
-      });
-    });
   },
   appendBootstrapCss() {
     var cssURL = 'https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css',
@@ -290,46 +252,10 @@ PerformList.prototype = {
   },
   appendModal() {
     var _this = this;
-    var option = [
-      {
-        text: '演唱会索引',
-        id: 'performIndex'
-      },
-      {
-        text: '预备标签数量',
-        id: 'preTagAmount'
-      },
-      {
-        text: '购买门票数',
-        id: 'ticketAmount'
-      },
-      {
-        text: '票价索引',
-        id: 'priceIndex'
-      },
-      {
-        text: '演出日期索引',
-        id: 'dateIndex'
-      },
-      {
-        text: '抢购时间',
-        id: 'flashSaleTime'
-      },
-      {
-        text: '临倒计时结束打开标签的时间(秒)',
-        id: 'startTagTime'
-      },
-      {
-        text: '临倒计时结束打开标签的时间间隔(毫秒)',
-        id: 'startTagGapTime'
-      },
-      {
-        text: '临倒计时结束打开标签的数量',
-        id: 'startTagAmount'
-      }
-    ];
+    var option = this.conf;
     var optionDom = '';
     option.forEach((item,index)=>{
+      if(item.id === 'certification') return;
       optionDom += `<div class='form-group'><label class='control-label'>${item.text}:</label><input type='text' class='form-control' id='${item.id}' value=''></div>`;
     });
     var $modal = $("<div class='modal fade' id='myModal' tabindex='-1' style='z-index:99999;'>" +
@@ -368,105 +294,174 @@ PerformList.prototype = {
     $('body').prepend($modal);
   },
   validateSetting() {
-    var performIndex = $('#performIndex').val();
-    var preTagAmount = $('#preTagAmount').val();
-    var ticketAmount = $('#ticketAmount').val();
-    var certification = $('#certification').val();
-    var priceIndex = $('#priceIndex').val();
-    var dateIndex = $('#dateIndex').val();
-    var flashSaleTime = $('#flashSaleTime').val();
-    var startTagTime = $('#startTagTime').val();
-    var startTagGapTime = $('#startTagGapTime').val();
-    var startTagAmount = $('#startTagAmount').val();
-    var verifyEmpty = '';
-    
-    if (performIndex === '') verifyEmpty = '演唱会索引不能为空';
-    if (ticketAmount === '') verifyEmpty = '购买门票数不能为空';
-    if (priceIndex === '') verifyEmpty = '票价索引不能为空';
-    if (dateIndex === '') verifyEmpty = '演出日期索引不能为空';
-    if (flashSaleTime === '') verifyEmpty = '抢购时间不能为空';
-    if (verifyEmpty !== '') {
-      alert(verifyEmpty);
-      return false;
+    var conf = this.conf;
+    for (var i=0,len=conf.length;i<len;i++) {
+      conf[i].value = $(`#${conf[i].id}`).val();
+      if (conf[i].id === 'certification') continue;
+      if (!(conf[i].verify.bind(this,conf[i].value))()) return false;
     }
     
-    var time = this.getTime(flashSaleTime);
-    var nowSec = time.now.sec;
-    var saleSec = time.sale.sec;
-    
-    if (saleSec < nowSec) {
-      alert('抢购时间不能小于当前时间');
-      return false;
-    }
-
-    var pattern = /^\d+$/;
-    var verifyNum = '';
-    if (!(pattern.test(performIndex))) verifyNum = '演唱会索引只能输入数字';
-    if (!(pattern.test(preTagAmount))) verifyNum = '预备标签数量只能输入数字';
-    if (!(pattern.test(ticketAmount))) verifyNum = '购买门票数只能输入数字';
-    if (!(pattern.test(priceIndex))) verifyNum = '票价索引只能输入数字';
-    if (!(pattern.test(dateIndex))) verifyNum = '演出日期索引只能输入数字';
-    if (!(pattern.test(startTagTime))) verifyNum = '临倒计时结束打开标签的时间只能输入数字';
-    if (!(pattern.test(startTagGapTime))) verifyNum = '临倒计时结束打开标签的时间间隔只能输入数字';
-    if (!(pattern.test(startTagAmount))) verifyNum = '临倒计时结束打开标签的数量只能输入数字';
-    if (verifyNum !== '') {
-      alert(verifyNum);
-      return false;
-    }
-
-    if (+performIndex > 9) {
-      alert('演唱会索引不能大于9');
-      return false;
-    }
-
-    if (performIndex < 0 || preTagAmount < 0 || ticketAmount < 0 || priceIndex < 0 || dateIndex < 0) {
-      alert('所填数字不能小于0');
-      return false;
-    }
-    
-    if (!(/^\d{1,2}(:|：)\d{1,2}$/.test(flashSaleTime))) {
-      alert('抢购时间格式不正确');
-      return false;
-    }
-    
-    if (+preTagAmount > 100 || +startTagAmount > 100) {
-      alert('预备标签数量不能大于100');
-      return false;
-    }
-    return {
-      performIndex,
-      preTagAmount,
-      ticketAmount,
-      certification,
-      priceIndex,
-      dateIndex,
-      flashSaleTime,
-      startTagTime,
-      startTagGapTime,
-      startTagAmount
-    };
+    return conf;
   },
   reset() {
-    for (var key in this.conf) $(`#${key}`).val(this.conf[key]);
+    this.conf.forEach((item,index)=>{
+      if (item.id === 'certification') return;
+      $(`#${item.id}`).val(item.default);
+    });
   },
   saveSetting() {
     var data = this.validateSetting();
     if (!data) return false;
-    for (var key in data) $.cookie(key, data[key], { expires: 1000, path: '/' });
+    data.forEach((item,index)=>{
+      $.cookie(item.id, item.value, { expires: 1000, path: '/' });
+    });
     $('#myModal').modal('hide');
   },
   settingInit() {
-    for (var key in this.conf) $(`#${key}`).val($.cookie(key) || this.conf[key]);
+    this.conf.forEach((item,index)=>{
+      $(`#${item.id}`).val($.cookie(item.id) || item.default);
+    });
   },
+  conf: [
+    {
+      text: '浏览器可存活的抢票页面数量',
+      id: 'ticketPageAmount',
+      default: 1,
+      value: '',
+      verify(val){
+        if (val === '') {
+          alert('浏览器可存活的抢票页面数量不能为空');
+          return false;
+        } else if (!(/^\d+$/.test(val))) {
+          alert('浏览器可存活的抢票页面数量只能输入数字');
+          return false;
+        } else if (+val > 20) {
+          alert('浏览器可存活的抢票页面数量不能大于20');
+          return false;
+        } else if (+val < 0) {
+          alert('浏览器可存活的抢票页面数量不能小于0');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      text: '购买门票数',
+      id: 'ticketAmount',
+      default: 2,
+      value: '',
+      verify(val){
+        if (val === '') {
+          alert('购买门票数不能为空');
+          return false;
+        } else if (!(/^\d+$/.test(val))) {
+          alert('购买门票数只能输入数字');
+          return false;
+        } else if (+val > 6) {
+          var reconfirm = confirm(`确定购买${val}张门票吗？`);
+          return reconfirm;
+        } else if (+val < 0) {
+          alert('购买门票数不能小于0');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      text: '票价索引',
+      id: 'priceIndex',
+      default: 0,
+      value: '',
+      verify(val){
+        if (val === '') {
+          alert('票价索引不能为空');
+          return false;
+        } else if (!(/^\d+$/.test(val))) {
+          alert('票价索引只能输入数字');
+          return false;
+        } else if (+val > 6) {
+          var reconfirm = confirm(`确定购买${val}张门票吗？`);
+          return reconfirm;
+        } else if (+val < 0) {
+          alert('票价索引不能小于0');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      text: '演出日期索引',
+      id: 'dateIndex',
+      default: 0,
+      value: '',
+      verify(val){
+        if (val === '') {
+          alert('演出日期索引不能为空');
+          return false;
+        } else if (!(/^\d+$/.test(val))) {
+          alert('演出日期索引只能输入数字');
+          return false;
+        } else if (+val < 0) {
+          alert('演出日期索引不能小于0');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      text: '抢购时间',
+      id: 'flashSaleTime',
+      default: '00:00',
+      value: '',
+      verify(val){
+        var time = this.getTime(val);
+        var nowSec = time.now.sec;
+        var saleSec = time.sale.sec;
+        if (val === '') {
+          alert('抢购时间不能为空');
+          return false;
+        } if (saleSec < nowSec) {
+          alert('抢购时间不能小于当前时间');
+          return false;
+        } if (!(/^\d{1,2}(:|：)\d{1,2}$/.test(val))) {
+          alert('抢购时间格式不正确');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      text: '打开抢票页面的时间间隔(毫秒)',
+      id: 'openPageSpanTime',
+      default: 1000,
+      value: '',
+      verify(val){
+        if (val === '') {
+          alert('打开抢票页面的时间间隔不能为空');
+          return false;
+        } else if (!(/^\d+$/.test(val))) {
+          alert('打开抢票页面的时间间隔只能输入数字');
+          return false;
+        } else if (+val < 0) {
+          alert('打开抢票页面的时间间隔不能小于0');
+          return false;
+        }
+        return true;
+      }
+    },
+    {
+      id: 'certification',
+      default: false,
+      value: ''
+    }
+  ]
 }
 
-PerformList.prototype = Object.assign(Ticket.prototype, PerformList.prototype);
+Controller.prototype = Object.assign(Ticket.prototype, Controller.prototype);
 
 if (/.*piao.damai.cn.*/.test(location.href)) {
   new Ticket();
 } else if (/.*trade.damai.cn.*/.test(location.href)) {
   new Confirm();
-} else if (/.*damai.cn\/projectlist.do.*/.test(location.href)) {
-  new PerformList();
 }
 
