@@ -25,10 +25,10 @@ GM_addStyle (newCSS);
   }
 
   Ticket.prototype = {
-    ticketAmount: $.cookie('ticketAmount'),    //购买门票的数量
-    certification: $.cookie('certification') === 'true',//是否要实名认证
-    performIndex: $.cookie('performIndex'),        //从0开始算起，选择第几个演出时间
-    priceIndex: $.cookie('priceIndex'),       //从0开始算起，买第几个价位
+    ticketAmount: +$.cookie('ticketAmount'),    //购买门票的数量
+    certification: true,//是否要实名认证,表单设置无效,需手动配置
+    performIndex: +$.cookie('performIndex'),        //从0开始算起，选择第几个演出时间
+    priceIndex: +$.cookie('priceIndex'),       //从0开始算起，买第几个价位
     detect() {
       var _this = this;
       async function collectEle(){
@@ -49,15 +49,15 @@ GM_addStyle (newCSS);
           _this.doSelect($price,'已选择票价','票价为未可选择状态',_this.priceIndex).then(msg=>{
               _this.findEle(['.ipt.ipt-num'],'寻找门票数量输入框').then($ticketAmount=>{
                 $ticketAmount.eq(0).val(_this.ticketAmount);
-                _this.findEle(['#btnBuyNow'],'寻找购买按钮').then($ele=>{
+                _this.findEle(['#btnBuyNow','#btnXuanzuo'],'寻找购买按钮').then($ele=>{
                   $ele.get(0).click();
                 });
               });
             },reason=>{
-            alert(reason);
+            box(reason);
           });
         },reason=>{
-          alert(reason);
+          box(reason);
         });
 
       });
@@ -65,6 +65,7 @@ GM_addStyle (newCSS);
     doSelect ($performTime,log,statusLog,priceIndex) {
       return new Promise((resolve,reject)=>{
         var clock = setInterval(()=>{
+          if(Controller.prototype.isCopyPage()) Controller.prototype.closeTag();
           var $timeItems = $performTime.find('li');
           var $timeBtn = null;
           var $item =null;
@@ -96,22 +97,34 @@ GM_addStyle (newCSS);
         var _this = Ticket.prototype;
         return new Promise(resolve=>{
           var clock = setInterval(()=>{
+           if(Controller.prototype.isCopyPage()) Controller.prototype.closeTag();
            var $ele = _this.filtSelector(selector);
-            if ($ele.length){
-              clearInterval(clock);
-              resolve($ele);
-            } else {
-              console.log(log);
-              $ele = _this.filtSelector(selector);
+            for(var i=0,len=$ele.length;i<len;i++) {
+              if($ele[i].length) {
+                clearInterval(clock);
+                resolve($ele[i]);
+                break;
+              }
             }
+            console.log(log);
           },1);
       });
     },
     filtSelector(selector) {
-      if (selector.length > 1) {
-        return $(selector[0]).not(selector[1]);
+      var arr = [];
+      if(selector.length > 1) {
+          if (selector[1] !== '.lst.lst-dis') {
+            selector.forEach((item,index)=>{
+              arr.push($(item));
+            });
+            return arr;
+        } else {
+          arr.push($(selector[0]).not(selector[1]));
+          return arr;
+        }
       } else {
-        return $(selector[0]);
+        arr.push($(selector[0]));
+        return arr;
       }
     }
   };
@@ -155,7 +168,7 @@ GM_addStyle (newCSS);
 
   Controller.prototype = {
     isCopyPage() {
-      return (window.location.href.indexOf('custom-copy') !== -1);
+      return (window.location.href.indexOf('customCopy') !== -1);
     },
     countdown() {
       var clock = setInterval((()=>{
@@ -170,9 +183,9 @@ GM_addStyle (newCSS);
         console.info(`距离抢购时间还有：${saleFormatTime} 距离开始循环打开页面的时间还有：${openTagFormatTime}`);
         if (openTagFormatTime == '00:00:00') {
           clearInterval(clock);
-          var openPageGapTime = $.cookie('openPageGapTime');
-          this.openTag(openPageGapTime);
-          //this.detect();
+          var openPageSpanTime = $.cookie('openPageSpanTime');
+          this.openTag(openPageSpanTime);
+          this.detect();
         }
       }).bind(this), 1000);
     },
@@ -182,15 +195,16 @@ GM_addStyle (newCSS);
         return;
       }
       $(e.target).attr('disabled',true);
-      $.cookie('success', 'false', { expires: 1000, path: '/' });
-      this.detect();
+      //this.detect();
       this.countdown();
     },
     copyPageStart() {
-      var openPageGapTime = $.cookie('openPageGapTime');
-      this.detect();
-      this.openTag(openPageGapTime);
-      this.closeTag();
+      $.cookie('domLoaded', 'false', { expires: 1000, path: '/' });
+      $(()=>{
+        $.cookie('domLoaded', 'true', { expires: 1000, path: '/' });
+        document.title = this.getPageId();
+        this.detect();
+      });
     },
     renderBase() {
      var $bar = $("<div class='btn-group'>" +
@@ -212,18 +226,52 @@ GM_addStyle (newCSS);
     },
     openTag(timeSpan) {
       var timeSpan = timeSpan || 1000;
-      setTimeout((()=>{
-        this.isCopyPage() ? window.open(window.location.href) : window.open(window.location.href+'?custom-copy');
+      $.cookie('openedPageAmount', 0, { expires: 1000, path: '/' });
+      $.cookie('opendPageLocked', 'false', { expires: 1000, path: '/' });
+      $.cookie('initOpenedPageAmount', 'false', { expires: 1000, path: '/' });
+      $.cookie('domLoaded', 'true', { expires: 1000, path: '/' });
+      var ticketPageAmount = +$.cookie('ticketPageAmount');
+      var clock = setInterval((()=>{
+        var openedPageAmount = +$.cookie('openedPageAmount');
+        var opendPageLocked = $.cookie('opendPageLocked');
+        var initOpenedPageAmount = $.cookie('initOpenedPageAmount');
+        var domLoaded = $.cookie('domLoaded');
+        
+        if(domLoaded === 'false') return;
+        
+        if(openedPageAmount < ticketPageAmount) {
+          if (initOpenedPageAmount === 'false') {
+            console.log('初始化打开额定数量标签页');
+            $.cookie('openedPageAmount', ++openedPageAmount, { expires: 1000, path: '/' });
+            this.isCopyPage() ? window.open(window.location.href) : window.open(window.location.href+'?customCopy-'+openedPageAmount);
+          } else if (opendPageLocked === 'true') {
+            console.log('已锁定打开标签页');
+          } else if (opendPageLocked === 'false') {
+            console.log('已解锁打开标签页');
+            $.cookie('openedPageAmount', ++openedPageAmount, { expires: 1000, path: '/' });
+            this.isCopyPage() ? window.open(window.location.href) : window.open(window.location.href+'?customCopy-'+openedPageAmount);
+          }
+          
+        } else {
+          $.cookie('initOpenedPageAmount', 'true', { expires: 1000, path: '/' });
+          $.cookie('opendPageLocked', 'true', { expires: 1000, path: '/' });
+          $.cookie('openedPageAmount', 0, { expires: 1000, path: '/' });
+        }
 
       }).bind(this),timeSpan);
     },
+    getPageId() {
+      var href = window.location.href;
+      var pageId = +(href.split('?')[1].split('-')[1]);
+      return pageId;
+    },
     closeTag() {
-      var ticketPageAmount = +$.cookie('ticketPageAmount');
-      var openPageSpanTime = +$.cookie('openPageSpanTime');
-      var timeout = ticketPageAmount * openPageSpanTime;
-      setTimeout((()=>{
-        if (this.isCopyPage()) window.close();
-      }).bind(this),timeout);
+      var pageId = this.getPageId();
+      var openedPageAmount = +$.cookie('openedPageAmount');
+      if (openedPageAmount === (pageId-1)) {
+        $.cookie('opendPageLocked', 'false', { expires: 1000, path: '/' });
+        window.close();
+      }
     },
     getTime(time) {
       var now = new Date();
@@ -347,7 +395,9 @@ GM_addStyle (newCSS);
     },
     settingInit() {
       this.conf.forEach((item,index)=>{
-        $(`#${item.id}`).val($.cookie(item.id) || item.default);
+        var $ele = $(`#${item.id}`);
+        if (item.id === 'certification' && $.cookie(item.id) === 'true') $ele.attr('checked',true);
+        $ele.val($.cookie(item.id) || item.default);
       });
     },
     conf: [
@@ -382,7 +432,7 @@ GM_addStyle (newCSS);
           } else if (!(/^\d+$/.test(val))) {
             box('浏览器可存活的抢票页面数量只能输入数字');
             return false;
-          } else if (+val > 20) {
+          } else if (+val > 100) {
             box('浏览器可存活的抢票页面数量不能大于20');
             return false;
           } else if (+val < 0) {
@@ -426,9 +476,6 @@ GM_addStyle (newCSS);
           } else if (!(/^\d+$/.test(val))) {
             box('票价索引只能输入数字');
             return false;
-          } else if (+val > 6) {
-            var reconfirm = confirm(`确定购买${val}张门票吗？`);
-            return reconfirm;
           } else if (+val < 0) {
             box('票价索引不能小于0');
             return false;
