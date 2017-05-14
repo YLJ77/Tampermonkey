@@ -142,16 +142,16 @@ GM_addStyle (newCSS);
         _this.findEle(["[ms-on-click='@modal.config_realname.onConfirm()']"],'寻找观演人确定按钮').then($ele=>{
           $ele.get(0).click();
           _this.findEle(['#orderConfirmSubmit'],'寻找确认订单按钮').then($ele=>{
-            //$ele.get(0).click();
-            $ele.eq(0).text('beautiful day!');
+            $ele.get(0).click();
+            //$ele.eq(0).text('beautiful day!');
           });
         });
       });
     });
     } else {
       _this.findEle(['#orderConfirmSubmit'],'寻找确认订单按钮').then($ele=>{
-        //$ele.get(0).click();
-        $ele.eq(0).text('beautiful day!');
+        $ele.get(0).click();
+        //$ele.eq(0).text('beautiful day!');
       });
     }
   };
