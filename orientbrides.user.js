@@ -14,22 +14,28 @@ function CollectId() {
   
   if(localStorage.awaitPendingTimeout === 'true') {
     localStorage.awaitPendingTimeout = 'false';
-    this.findEle('#setting').then($ele=>{
+    let selector = (localStorage.theTypeOfTaskBeingPerformed === 'collectId') ? 'collectId' : 'sendEmail';
+    selector = `#${selector}`;
+    this.findEle(selector).then($ele=>{
       $ele.get(0).click();
     });
   }
 }
 
 CollectId.prototype = {
+  emailMaxId: 11400000,
   ladyId: 1187357,
   requestTimeSpan: 100,
   notifyTimeSpan: 2000,
-  maxId: 33914386,
+  collectMaxId: 33914386,
   curId: 11111111,
   pendingLimit: 30,
   awaitPendingTimeoutM: 2,
+  emailCurIdIndex: 0,
+  ladyName: 'xiaojun',
   cantWriteFlag: 'Sorry, you can’t write letter to this man. Use presentations instead.',
   noInfoFlag: 'Information about a man is not available',
+  nameFlag: '<td>Name:</td>',
   canWriteFlag: 'btnReply2',
   clock: null,
   awaitPendingTimeoutLimit() {
@@ -49,26 +55,51 @@ CollectId.prototype = {
     });
   },
   renderBase() {
-    var $bar = $("<button class='btn btn-default' type='button' id='setting'>开始</button>")
+    let $bar = $("<div><button class='btn btn-default' type='button' id='collectId'>开始收集id</button><button class='btn btn-default' type='button' id='sendEmail'>开始发信</button></div>")
     .css({
       position: 'fixed',
       top: '70px',
       left: '20px',
-      'z-index': 999,
-      width: '50px',
+      'z-index': 999
+    })
+    .find('button')
+    .css({
+      width: '70px',
       height: '30px'
     })
-    .on('click',this.controller.bind(this));
+    .end()
+    .find('#collectId')
+    .on('click',this.controlCollect.bind(this))
+    .end()
+    .find('#sendEmail')
+    .on('click',this.controllEmail.bind(this))
+    .end();
 
     $('body').prepend($bar);
   },
-  controller(e) {
-    var $ele = $(e.target);
-    if($ele.text() === '开始') {
-      $ele.text('暂停');
-      this.mutilThreadCollect();
-    } else {
-      $ele.text('开始');
+  controlCollect(e) {
+    let $ele = $(e.target);
+    $('#sendEmail').css('display', 'none');
+    if ($ele.text() === '开始收集id') {
+      localStorage.theTypeOfTaskBeingPerformed = 'collectId';
+      $ele.text('暂停收集id');
+      this.mutilThread(this.doCollect, 'collectId');
+    } else if ($ele.text() === '暂停收集id') {
+      $ele.text('开始收集id');
+      clearInterval(this.clock);
+    }
+  },
+  controllEmail(e) {
+    let $ele = $(e.target);
+    let idArray = localStorage.idArray;
+    window.idArray = JSON.parse(idArray);
+    $('#collectId').css('display', 'none');
+    if ($ele.text() === '开始发信') {
+      localStorage.theTypeOfTaskBeingPerformed = 'sendEmail';
+      $ele.text('暂停发信');
+      this.mutilThread(this.doEmail, 'sendEmail');
+    } else if ($ele.text() === '暂停发信') {
+      $ele.text('开始发信');
       clearInterval(this.clock);
     }
   },
@@ -78,11 +109,17 @@ CollectId.prototype = {
   increaseId(id) {
     return ++id;
   },
-  getCurId() {
-    return +localStorage.curId;
+  getCurId(type) {
+    if (type === 'collectId') {
+      return +localStorage['collectCurId'];
+    } else if (type === 'sendEmail') {
+      let emailCurIdIndex = (localStorage.emailCurIdIndex === undefined) ? 0 : +localStorage.emailCurIdIndex;
+      return window.idArray[emailCurIdIndex];
+    }
+    
   },
   saveCurId(id) {
-    localStorage.curId = id;
+    localStorage.collectCurId = id;
   },
   saveIdArray(idJSON) {
     localStorage.idArray = idJSON;
@@ -90,19 +127,140 @@ CollectId.prototype = {
   initData() {
     localStorage.xhrFailTimes = 0;
     localStorage.pendingAmount = 0;
+    localStorage.getNamePendingAmount = 0;
+    localStorage.getNameXhrFailTimes = 0;
+    localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
+    localStorage.getNameHoldingPendingTimes = this.awaitPendingTimeoutLimit();
     if(localStorage.idArray === undefined) {
       localStorage.idArray = '[]';
-      localStorage.curId = this.curId;
+      
+      localStorage.collectCurId = this.collectCurId;
+      localStorage.emailCurIdIndex = this.emailCurIdIndex;
+      localStorage.letterCurIndex = 0;
+      localStorage.letterArr = '[]';
     }
+  },
+  generateLetter(letter, manName, ladyName) {
+    return `Dear ${manName}\r\n\r\n${letter}\r\n\r\n${ladyName}`;
+  },
+  getManName(id) {
+    return new Promise((resolve, reject)=>{
+      let url = this.getUrl(id);
+      $.ajax({url:url,type:'GET'}).done(((data,statusText)=>{
+        let startIndex = data.indexOf(this.nameFlag);
+        startIndex += this.nameFlag.length;
+        let endIndex = data.indexOf('</td>', startIndex);
+        let name = data.substring(startIndex, endIndex).replace(/\s*<td>/, '').split(' ')[0];
+        resolve(name);
+      })).fail((xhr)=>{
+        this.handleFail(xhr, 'getNameXhrFailTimes', this.pendingLimit, id, this.refresh);
+        reject('fail');
+      }).always(()=>{
+        let getNamePendingAmount = +localStorage.getNamePendingAmount;
+        localStorage.getNamePendingAmount = --getNamePendingAmount;
+      });
+    });
+  },
+  handleReachPendingLimit(field) {
+    let pendingTimes = +localStorage[field];
+    localStorage[field] = --pendingTimes;
+    if (pendingTimes === 0) this.refresh();
+  },
+  mutilThread(fn, type) {
+    this.clock = setInterval(()=>{
+      let pendingAmount = +localStorage.pendingAmount;
+      let holdingPendingTimes, maxId, curId, selector, btnText, completeText, nexId, letter, letterCurIndex, letterArr, getNamePendingAmount, emailCurIdIndex;
+      if (type === 'sendEmail') {
+        curId = this.getCurId('sendEmail');
+        selector = '#sendEmail';
+        btnText = '开始发信';
+        completeText = '邮件已发完';
+      } else if (type === 'collectId') {
+        curId = this.getCurId('collectId');
+        maxId = this.collectMaxId;
+        selector = '#collectId';
+        btnText = '开始收集id';
+        completeText = '收集ID完成';
+      }
+      
+      if (pendingAmount <= this.pendingLimit) {
+        localStorage.pendingAmount = ++pendingAmount;
+      } else {
+        this.handleReachPendingLimit('holdingPendingTimes');
+      }
+      
+      console.log(`已开始 ${curId}`);
+      if (type === 'sendEmail') {
+        getNamePendingAmount = +localStorage.getNamePendingAmount;
+        letterCurIndex = +localStorage.letterCurIndex;
+        letterArr = JSON.parse(localStorage.letterArr);
+        letter = letterArr[letterCurIndex];
+        if (getNamePendingAmount <= this.pendingLimit) {
+          localStorage.getNamePendingAmount = ++getNamePendingAmount;
+        } else {
+          this.handleReachPendingLimit('getNameHoldingPendingTimes');
+        }
+        this.getManName(curId).then(manName=>{
+          if (typeof manName !== 'string' || manName === 'fail') return;
+          letter = this.generateLetter(letter, manName, this.ladyName);
+          fn.bind(this, curId, letter)();
+        });
+        emailCurIdIndex = +localStorage.emailCurIdIndex;
+        localStorage.emailCurIdIndex = ++emailCurIdIndex;
+        if (emailCurIdIndex > window.idArray.length) {
+          alert('邮件已发完毕');
+          return;
+        }
+        
+      } else if (type === 'collectId') {
+        if (curId > maxId) {
+          clearInterval(this.clock);
+          $(selector).text(btnText);
+          alert(completeText);
+          return;
+        }
+        fn.bind(this, curId)();
+        nexId = this.increaseId(curId);
+        this.saveCurId(nexId);
+      }
+      
+      
+    }, this.requestTimeSpan);
+  },
+  doEmail(id,letter) {
+    let url = this.getUrl(id);
+    let ladyId = this.ladyId;
+    $.ajax({
+      url:url,
+      type: 'POST',
+      data: {
+        ladyID:ladyId,
+        manID:id,
+        type:'newLetter',
+        
+      __VIEWSTATEFIELDCOUNT:2,                                                __VIEWSTATE:'/wEPDwULLTEwMjg2MDU0NzEPZBYCZg9kFgJmD2QWAmYPZBYCAgMPZBYIAgEPFgIeBFRleHQFF0FHRU5DWS5PUklFTlRCUklERVMuTkVUZAIGD2QWAgIBDxBkZBYBZmQCCA9kFgICAw9kFgQCCA8WBh4FdGl0bGVkHgRocmVmBSMvTWFpbC9OZXdMZXR0ZXIuYXNweD9sYWR5SUQ9MTE4NzM1Nx4HVmlzaWJsZWcWAmYPFgIeA2FsdGRkAg4PFgYfAQUESGVscB8CBREvSW5kZXgvSGVscDIuYXNweB8DZxYCZg8WAh8EBQRIZWxwZAIKD2QWAgIFD2QWAgIDD2QWAgIBDw8WBh4HUmF3R3VpZCgpWFN5c3RlbS5HdWlkLCBtc2NvcmxpYiwgVmVy',
+      __VIEWSTATE1:'c2lvbj00LjAuMC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI3N2E1YzU2MTkzNGUwODkkZjkzNGQxM2MtOGI0OC00OThiLWE0OWYtZDQwMjQyYTQ3NDMwHgZsYWR5SUQCnbxIHgVtYW5JRAKX49cPZGRkEklTWzFKRYK2lcH9LIbR45bp7Zg=',
+      __VIEWSTATEGENERATOR:'94640245',
+      ctl00$ctl00$ctl00$ddlLanguageSelect:'English',
+      ctl00$ctl00$ctl00$ContentPlaceHolder1$nestedContentPlaceHolder$ContentIndex$cntrlViewLadyCorrespondence$txtBoxLetterText:letter,
+      ctl00$ctl00$ctl00$ContentPlaceHolder1$nestedContentPlaceHolder$ContentIndex$cntrlViewLadyCorrespondence$btnLetterReplySend:'Send'
+      }
+    }).done((data,statusText)=>{
+      console.info(`发送信件(${id}): ${statusText}`);
+    }).fail(xhr=>{
+      console.info(`发送信件: ${xhr.statusText}`);
+      this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
+    }).always(()=>{
+      let pendingAmount = +localStorage.pendingAmount;
+      localStorage.pendingAmount = --pendingAmount;
+    });
   },
   doCollect(id) {
     let url = this.getUrl(id);
     $.ajax({url:url,type:'GET'}).done(((data,statusText)=>{
-      console.log(statusText);
+      console.log(`${id}: ${statusText}`);
       let idArray,curId,nextId,idJSON,cantWriteIndex,canWriteIndex,noInfoIndex;
       let cantWriteFlag = this.cantWriteFlag;
-      let pendingAmount = +localStorage.pendingAmount;
-      localStorage.pendingAmount = --pendingAmount;
       localStorage.xhrFailTimes = 0;
       localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
       if (typeof data === 'string') {
@@ -117,62 +275,34 @@ CollectId.prototype = {
         idJSON = JSON.stringify(idArray);
         this.saveIdArray(idJSON);
         this.msg('Collect Id', `已存储 ${id}`);
-        console.info(`已存储 ${id}`);
+        console.warn(`已存储 ${id}`);
         } else {
           console.warn(`已跳过 ${id}`);
         }
       }
     }).bind(this))
     .fail((xhr)=>{
-      console.log(xhr.statusText);
+      console.warn(`${id}: ${xhr.statusText}`);
+      this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
+    }).always(()=>{
       let pendingAmount = +localStorage.pendingAmount;
-      let xhrFailTimes = +localStorage.xhrFailTimes;
       localStorage.pendingAmount = --pendingAmount;
-      xhrFailTimes += 1;
-      localStorage.xhrFailTimes = xhrFailTimes;
-      if (xhrFailTimes > 20) this.refresh();
-      console.warn(`已跳过 ${id}`);
     });
   },
+  handleFail(xhr, field, limit, id, fn) {
+    console.log(xhr.statusText);
+    let failTimes = +localStorage[field];
+    localStorage[field] = ++failTimes;
+    if (failTimes > limit) fn();
+    console.warn(`已跳过 ${id}`);
+  },
   refresh() {
+    clearInterval(this.clock);
     let refreshTimes = localStorage.refreshTimes === undefined ? 0 : +localStorage.refreshTimes;
     refreshTimes += 1;
     localStorage.refreshTimes = refreshTimes;
     localStorage.awaitPendingTimeout = 'true';
-    clearInterval(this.clock);
     window.location.reload(true);
-  },
-  mutilThreadCollect() {
-    let awaitPendingTimeoutLimit = this.awaitPendingTimeoutLimit();
-    localStorage.holdingPendingTimes = awaitPendingTimeoutLimit;
-    this.clock = setInterval(()=>{
-      let pendingAmount = +localStorage.pendingAmount;
-      let holdingPendingTimes;
-      curId = this.getCurId();
-      if (pendingAmount <= this.pendingLimit) {
-        localStorage.pendingAmount = ++pendingAmount;
-      } else {
-        console.log(`xhrPendingAmount: ${pendingAmount}`);
-        holdingPendingTimes = +localStorage.holdingPendingTimes;
-        holdingPendingTimes -= 1;
-        localStorage.holdingPendingTimes = holdingPendingTimes;
-        if (holdingPendingTimes === 0) {
-          this.refresh();
-        }
-        return;
-      }
-      if (curId > this.maxId) {
-        clearInterval(this.clock);
-        $('#setting').text('开始');
-        alert('已收集完成');
-        return;
-      }
-      console.log(`已开始 ${curId}`);
-      this.doCollect(curId);
-      nextId = this.increaseId(curId);
-      this.saveCurId(nextId);
-      
-    }, this.requestTimeSpan);
   },
   msg(title,content,iconUrl='https://raw.githubusercontent.com/YLJ77/Tampermonkey/master/img/icon128.png') {
     let _this = this;
