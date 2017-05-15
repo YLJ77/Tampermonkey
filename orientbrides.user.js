@@ -5,15 +5,12 @@
 // @description  collect id
 // @author       ljyang
 // @include      *type=newLetter
-// @include      *baidu.com*
-// @include      *damai.cn*
 // @grant        null
 // ==/UserScript==
 
 function CollectId() {
   this.initData();
   this.renderBase();
-  localStorage.pendingAmount = 0;
   
   if(localStorage.awaitPendingTimeout === 'true') {
     localStorage.awaitPendingTimeout = 'false';
@@ -29,13 +26,15 @@ CollectId.prototype = {
   notifyTimeSpan: 2000,
   maxId: 33914386,
   curId: 11111111,
-  pendingLimit: 20,
+  pendingLimit: 30,
   awaitPendingTimeoutM: 2,
   cantWriteFlag: 'Sorry, you can’t write letter to this man. Use presentations instead.',
+  noInfoFlag: 'Information about a man is not available',
+  canWriteFlag: 'btnReply2',
   clock: null,
   awaitPendingTimeoutLimit() {
     let awaitPendingTimeoutM = this.awaitPendingTimeoutM;
-    let times = 1000/ this.requestTimeSpan;
+    let times = 1000 / this.requestTimeSpan;
     return awaitPendingTimeoutM * 60 * times;
   },
   findEle(selector) {
@@ -89,6 +88,8 @@ CollectId.prototype = {
     localStorage.idArray = idJSON;
   },
   initData() {
+    localStorage.xhrFailTimes = 0;
+    localStorage.pendingAmount = 0;
     if(localStorage.idArray === undefined) {
       localStorage.idArray = '[]';
       localStorage.curId = this.curId;
@@ -96,15 +97,20 @@ CollectId.prototype = {
   },
   doCollect(id) {
     let url = this.getUrl(id);
-    $.ajax({url:url}).done((data=>{
-      let idArray,curId,nextId,idJSON;
+    $.ajax({url:url,type:'GET'}).done(((data,statusText)=>{
+      console.log(statusText);
+      let idArray,curId,nextId,idJSON,cantWriteIndex,canWriteIndex,noInfoIndex;
       let cantWriteFlag = this.cantWriteFlag;
-      let index = data.indexOf(cantWriteFlag);
       let pendingAmount = +localStorage.pendingAmount;
       localStorage.pendingAmount = --pendingAmount;
+      localStorage.xhrFailTimes = 0;
       localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
-      console.info(`cantWriteFlag: ${index}`);
-      if(typeof data === 'string' && index === -1) {
+      if (typeof data === 'string') {
+        cantWriteIndex = data.indexOf(cantWriteFlag);
+        canWriteIndex = data.indexOf(this.canWriteFlag);
+        noInfoIndex = data.indexOf(this.noInfoFlag);
+        console.info(`cantWriteFlag: ${cantWriteIndex}`);
+        if(cantWriteIndex === -1 && canWriteIndex !== -1 && noInfoIndex === -1) {
         idArray = JSON.parse(localStorage.idArray);
         idArray.push(id);
         localStorage.idArrayLength = idArray.length;
@@ -112,10 +118,29 @@ CollectId.prototype = {
         this.saveIdArray(idJSON);
         this.msg('Collect Id', `已存储 ${id}`);
         console.info(`已存储 ${id}`);
-      } else {
-        console.warn(`已跳过 ${id}`);
+        } else {
+          console.warn(`已跳过 ${id}`);
+        }
       }
-    }).bind(this));
+    }).bind(this))
+    .fail((xhr)=>{
+      console.log(xhr.statusText);
+      let pendingAmount = +localStorage.pendingAmount;
+      let xhrFailTimes = +localStorage.xhrFailTimes;
+      localStorage.pendingAmount = --pendingAmount;
+      xhrFailTimes += 1;
+      localStorage.xhrFailTimes = xhrFailTimes;
+      if (xhrFailTimes > 20) this.refresh();
+      console.warn(`已跳过 ${id}`);
+    });
+  },
+  refresh() {
+    let refreshTimes = localStorage.refreshTimes === undefined ? 0 : +localStorage.refreshTimes;
+    refreshTimes += 1;
+    localStorage.refreshTimes = refreshTimes;
+    localStorage.awaitPendingTimeout = 'true';
+    clearInterval(this.clock);
+    window.location.reload(true);
   },
   mutilThreadCollect() {
     let awaitPendingTimeoutLimit = this.awaitPendingTimeoutLimit();
@@ -131,9 +156,8 @@ CollectId.prototype = {
         holdingPendingTimes = +localStorage.holdingPendingTimes;
         holdingPendingTimes -= 1;
         localStorage.holdingPendingTimes = holdingPendingTimes;
-        if (awaitPendingTimeoutLimit - holdingPendingTimes === 0) {
-          localStorage.awaitPendingTimeout = 'true';
-          window.location.reload(true);
+        if (holdingPendingTimes === 0) {
+          this.refresh();
         }
         return;
       }
@@ -155,16 +179,16 @@ CollectId.prototype = {
     if (window.Notification){
         if (Notification.permission === 'granted') {
           let notification;
-					notification = new Notification(title,{body:content,icon:iconUrl});
+          notification = new Notification(title,{body:content,icon:iconUrl});
         } else {
             Notification.requestPermission(function(result) {
               let notification;
                 if (result === 'denied' || result === 'default') {
                     alert('通知权限被拒绝！');
                 } else {
-									  notification = new Notification(title,{body:content,icon:iconUrl});
-								}
-						});
+                    notification = new Notification(title,{body:content,icon:iconUrl});
+                }
+            });
         };
     } else {
       alert('你的浏览器不支持Notification，快去升级chrome吧！');
