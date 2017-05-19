@@ -29,9 +29,8 @@ function CollectEmail() {
 
 CollectEmail.prototype = {
   ladyId: 1187357,
-  requestTimeSpan: 100,
+  requestTimeSpan: 50,
   collectMaxId: 33914386,
-  curId: 11111111,
   pendingLimit: 30,
   awaitPendingTimeoutM: 2,
   emailCurIdIndex: 0,
@@ -64,7 +63,7 @@ CollectEmail.prototype = {
     .css({
       position: 'fixed',
       top: '100px',
-      left: '20px',
+      right: '30px',
       'z-index': 999
     })
     .find('button')
@@ -158,13 +157,12 @@ CollectEmail.prototype = {
     localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
     localStorage.getNameHoldingPendingTimes = this.awaitPendingTimeoutLimit();
     if(localStorage.idArray === undefined) {
-      localStorage.idArray = '[]';
+      //localStorage.idArray = '[]';
       
-      localStorage.collectCurId = this.collectCurId;
-      localStorage.emailCurIdIndex = this.emailCurIdIndex;
-      localStorage.letterCurIndex = 0;
-      localStorage.letterArr = '[]';
-      localStorage.refreshTimes = 0;
+      //localStorage.collectCurId = this.collectCurId;
+      //localStorage.emailCurIdIndex = this.emailCurIdIndex;
+      //localStorage.letterCurIndex = 0;
+      //localStorage.letterArr = '[]';
     }
   },
   generateLetter(letter, manName, ladyName) {
@@ -208,7 +206,6 @@ CollectEmail.prototype = {
     this.clock = setInterval(()=>{
       let pendingAmount = +localStorage.pendingAmount;
       let curId, selector, btnText, completeText, letter, letterCurIndex, letterArr, getNamePendingAmount, emailCurIdIndex;
-      curId = this.getCurId('sendEmail');
       selector = '#sendEmail';
       btnText = '开始发信';
       completeText = '邮件已发完毕';
@@ -220,6 +217,7 @@ CollectEmail.prototype = {
           $(selector).text(btnText);
           return;
         }
+        curId = this.getCurId('sendEmail');
         localStorage.pendingAmount = ++pendingAmount;
         emailCurIdIndex = +localStorage.emailCurIdIndex;
         localStorage.emailCurIdIndex = ++emailCurIdIndex;
@@ -252,13 +250,13 @@ CollectEmail.prototype = {
     this.clock = setInterval(()=>{
       let pendingAmount = +localStorage.pendingAmount;
       let maxId, curId, selector, btnText, completeText, nexId;
-      curId = this.getCurId('collectId');
       maxId = this.collectMaxId;
       selector = '#collectId';
       btnText = '开始收集id';
       completeText = '收集ID完成';
       
       if (pendingAmount <= this.pendingLimit) {
+        curId = this.getCurId('collectId');
         localStorage.pendingAmount = ++pendingAmount;
         nexId = this.increaseId(curId);
         this.saveCurId(nexId);
@@ -375,16 +373,16 @@ CollectEmail.prototype = {
     if (window.Notification){
         if (Notification.permission === 'granted') {
           let notification;
-          notification = new Notification(title,{body:content,icon:iconUrl});
+					notification = new Notification(title,{body:content,icon:iconUrl});
         } else {
             Notification.requestPermission(function(result) {
               let notification;
                 if (result === 'denied' || result === 'default') {
                     alert('通知权限被拒绝！');
                 } else {
-                    notification = new Notification(title,{body:content,icon:iconUrl});
-                }
-            });
+									  notification = new Notification(title,{body:content,icon:iconUrl});
+								}
+						});
         };
     } else {
       alert('你的浏览器不支持Notification，快去升级chrome吧！');
