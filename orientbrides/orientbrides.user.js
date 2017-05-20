@@ -500,17 +500,12 @@ Login.prototype.findEle = CollectEmail.prototype.findEle;
 
 
 (()=>{
-  debugger;
   let href = window.location.href;
   if (href.indexOf('Login.aspx') !== -1) {
     new Login();
-  } else if (href.indexOf('default.aspx') !== -1 || href === 'http://agency.orientbrides.net/') {
-    if (href.indexOf('copyPage') === -1) {
+  } else if (href.indexOf('copyPage') === -1) {
       window.open(href+'?copyPage');
     } else {
-      alert(typeof CollectEmail);
       new CollectEmail();
     }
-    
-  }
 })();
