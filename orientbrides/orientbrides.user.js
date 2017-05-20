@@ -4,7 +4,6 @@
 // @version      0.1
 // @description  collect id
 // @author       ljyang
-// @include      *type=newLetter
 // @include      *Login.aspx*
 // @include      *default.aspx
 // @include      *agency.orientbrides.net/
@@ -12,10 +11,10 @@
 // ==/UserScript==
 
 function CollectEmail() {
-  this.initData();
   this.renderBase();
+  this.initData();
   
-  //if(localStorage.awaitPendingTimeout === 'true') {
+  if(localStorage.awaitPendingTimeout === 'true') {
     let refreshTimes = +localStorage.refreshTimes, selector;
     localStorage.refreshTimes = ++refreshTimes;
     localStorage.awaitPendingTimeout = 'false';
@@ -24,8 +23,8 @@ function CollectEmail() {
     this.findEle(selector).then($ele=>{
       $ele.get(0).click();
     });
-  //}
-}
+  }
+};
 
 CollectEmail.prototype = {
   ladyId: 1187357,
@@ -40,6 +39,7 @@ CollectEmail.prototype = {
   nameFlag: '<td>Name:</td>',
   canWriteFlag: 'btnReply2',
   clock: null,
+  letterArr: [`I'm only five-foot-five and my hands are really small and sometimes I'm quiet and sometimes my face goes bright red really easily. Sometimes I drink too much and make a fool of myself but I hope you don't mind because I'll laugh at your jokes and I'd like you play with my hair or run your hand down the back of my arm. I know you know, and I know you are taking caution and you're trying to figure me out..\r\n\r\nI haven't figured me out, and I'll sincerely smile and wish you luck.\r\n\r\nPlease find me if you ever succeed.\r\n\r\nI'll fall in love with something obscure, the way your left elbow digs into your waist, almost unnoticeably, when you're nervous or the way you move the left side of your mouth when you are acting like what I say doesn't matter. We're all acting aren't we? \r\n\r\nI'm short and you're tall and I don't think it much matters anyway because I'll raise my shoulders for you so we can hold hands. If you hold my hand tight. If you make me feel like the greatest thing you've ever met, even just for that moment.\r\n\r\nBecause in this moment you are my greatest.`],
   awaitPendingTimeoutLimit() {
     let awaitPendingTimeoutM = this.awaitPendingTimeoutM;
     let times = 1000 / this.requestTimeSpan;
@@ -56,14 +56,71 @@ CollectEmail.prototype = {
       }, 100);
     });
   },
+  setting(e) {
+    let $ele = $(e.target);
+    let text = $ele.text();
+    let $table = this.$view.find('#table');
+    let setting,con;
+    if (text === '设置') {
+      $table.attr('contenteditable', true)
+      $ele.text('保存');
+    } else if (text === '保存') {
+      setting = ['awaitPendingTimeout','collectCurId','curTime','emailCurIdIndex','holdingPendingTimes','idArrayLength','idArray','pendingAmount','refreshTimes','theTypeOfTaskBeingPerformed','xhrFailTimes'];
+      setting.forEach(item=>{
+        if (item === 'idArray') {
+          con = confirm('是否保存idArray?');
+          if (con) {
+            localStorage[item] = this.$view.find(`#${item}`).text();
+          } else {
+            return;
+          }
+        }
+        localStorage[item] = this.$view.find(`#${item}`).text();
+      });
+      $table.attr('contenteditable', false)
+      $ele.text('设置');
+    }
+  },
   renderBase() {
-    let $bar = $(`<div><button class='btn btn-default' type='button' id='collectId'>开始收集id</button><br>
-                  <button class='btn btn-default' type='button' id='sendEmail'>开始发信</button><br>
-                  <button class='btn btn-default' type='button' id='collectIdSendEmail'>收集ID且发信</button></div>`)
+    let $view = $(`<div>
+  <button class='btn btn-default' type='button' id='collectId'>开始扫描收集ID</button><br>
+  <button class='btn btn-default' type='button' id='sendEmail'>开始本地ID发信</button><br>
+  <button class='btn btn-default' type='button' id='scanIdSendEmail'>开始寻找ID发信</button><br>
+  <button class='btn btn-default' type='button' id='setting'>设置</button>
+
+  <table id='table' style='margin-top:5px;outline:1px solid #000;background:#fff;border-collapse:collapse;' cellpadding="10" contenteditable="false">
+    <tr>
+      <th>awaitPendingTimeout</th>
+      <th>collectCurId</th>
+      <th>curTime</th>
+      <th>emailCurIdIndex</th>
+      <th>holdingPendingTimes</th>
+      <th>idArrayLength</th>
+      <th>idArray</th>
+      <th>pendingAmount</th>
+      <th>refreshTimes</th>
+      <th>theTypeOfTaskBeingPerformed</th>
+      <th>xhrFailTimes</th>
+    </tr>
+    <tr>
+      <td id='awaitPendingTimeout'></td>
+      <td id='collectCurId'></td>
+      <td id='curTime'></td>
+      <td id='emailCurIdIndex'></td>
+      <td id='holdingPendingTimes'></td>
+      <td id='idArrayLength'></td>
+      <td id='idArray'></td>
+      <td id='pendingAmount'></td>
+      <td id='refreshTimes'></td>
+      <td id='theTypeOfTaskBeingPerformed'></td>
+      <td id='xhrFailTimes'></td>
+    </tr>
+  </table>
+</div>`)
     .css({
       position: 'fixed',
-      top: '100px',
-      right: '30px',
+      top: '00px',
+      left: '10px',
       'z-index': 999
     })
     .find('button')
@@ -78,37 +135,69 @@ CollectEmail.prototype = {
     .find('#sendEmail')
     .on('click',this.controllEmail.bind(this))
     .end()
-    .find('#collectIdSendEmail')
+    .find('#scanIdSendEmail')
     .on('click',this.cCollectSend.bind(this))
+    .end()
+    .find('#table th,#table td')
+    .css('outline', '1px solid #000')
+    .end()
+    .find('#setting')
+    .on('click',this.setting.bind(this))
     .end();
 
-    $('body').prepend($bar);
+    this.$view = $view;
+    $('body').prepend($view);
+  },
+  changeView() {
+    for (let key in localStorage) {
+      if (key === 'idArray' || key === 'letterArr') continue;
+      this.$view.find(`#${key}`).text(localStorage[key]);
+    }
+  },
+  getLastSentId() {
+    return new Promise((resolve, reject)=>{
+      let url = `http://agency.orientbrides.net/Mail/GirlsCorrespondenceView.aspx?type=1&includeAll=true&ladyID=${this.ladyId}&sortBy=0&sortDirection=1&groupByMan=1&showTotalCount=False`;
+      $.ajax({url:url,type:'GET'})
+        .done(data=>{
+          let startStr = 'ctl00_ctl00_ContentPlaceHolder1_nestedContentPlaceHolder_cntrlCorrespondenceSwitcher_ctl00_rptCorrespondenceOutbox_ctl00_hypLnkCorrespondentName';
+          let startIndex = data.indexOf(startStr) + startStr.length;
+          let endStr = `">`;
+          let endIndex = data.indexOf(endStr, startIndex);
+          let reduceStartStr = 'manID=';
+          let reduceStartIndex = data.indexOf(reduceStartStr, startIndex) + reduceStartStr.length;
+          let manId = data.substring(reduceStartIndex, endIndex);
+          this.msg('LAST ID', `获取上一次发送的ID成功: ${manId}`);
+          resolve(mainId);
+        })
+       .fail(()=>{
+        this.msg('LAST ID', '获取上一次发送的ID失败');
+        reject('fail');
+      });
+    });
   },
   cCollectSend(e) {
     let $ele = $(e.target);
-    let idArray = localStorage.idArray;
-    window.idArray = JSON.parse(idArray);
     $('#collectId').css('display', 'none');
     $('#sendEmail').css('display', 'none');
-    if ($ele.text() === '收集ID且发信') {
-      localStorage.theTypeOfTaskBeingPerformed = 'collectIdSendEmail';
-      $ele.text('暂停收集ID且发信');
+    if ($ele.text() === '开始寻找ID发信') {
+      localStorage.theTypeOfTaskBeingPerformed = 'scanIdSendEmail';
+      $ele.text('暂停寻找ID发信');
       this.mutilThreadCollect(true);
-    } else if ($ele.text() === '暂停收集ID且发信') {
-      $ele.text('收集ID且发信');
+    } else if ($ele.text() === '暂停寻找ID发信') {
+      $ele.text('开始寻找ID发信');
       clearInterval(this.clock);
     }
   },
   controlCollect(e) {
     let $ele = $(e.target);
     $('#sendEmail').css('display', 'none');
-    $('#collectIdSendEmail').css('display', 'none');
-    if ($ele.text() === '开始收集id') {
+    $('#scanIdSendEmail').css('display', 'none');
+    if ($ele.text() === '开始扫描收集ID') {
       localStorage.theTypeOfTaskBeingPerformed = 'collectId';
-      $ele.text('暂停收集id');
+      $ele.text('暂停扫描收集ID');
       this.mutilThreadCollect();
-    } else if ($ele.text() === '暂停收集id') {
-      $ele.text('开始收集id');
+    } else if ($ele.text() === '暂停扫描收集ID') {
+      $ele.text('开始扫描收集ID');
       clearInterval(this.clock);
     }
   },
@@ -117,13 +206,13 @@ CollectEmail.prototype = {
     let idArray = localStorage.idArray;
     window.idArray = JSON.parse(idArray);
     $('#collectId').css('display', 'none');
-    $('#collectIdSendEmail').css('display', 'none');
-    if ($ele.text() === '开始发信') {
+    $('#scanIdSendEmail').css('display', 'none');
+    if ($ele.text() === '开始本地ID发信') {
       localStorage.theTypeOfTaskBeingPerformed = 'sendEmail';
-      $ele.text('暂停发信');
+      $ele.text('暂停本地ID发信');
       this.mutilThreadEmail();
-    } else if ($ele.text() === '暂停发信') {
-      $ele.text('开始发信');
+    } else if ($ele.text() === '暂停本地ID发信') {
+      $ele.text('开始本地ID发信');
       clearInterval(this.clock);
     }
   },
@@ -152,18 +241,19 @@ CollectEmail.prototype = {
   initData() {
     localStorage.xhrFailTimes = 0;
     localStorage.pendingAmount = 0;
-    localStorage.getNamePendingAmount = 0;
-    localStorage.getNameXhrFailTimes = 0;
     localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
-    localStorage.getNameHoldingPendingTimes = this.awaitPendingTimeoutLimit();
+    if (localStorage.letterCurIndex === undefined) localStorage.letterCurIndex = 0;
+    if (localStorage.letterArr === undefined) localStorage.letterArr = JSON.stringify(this.letterArr);
+    if (localStorage.awaitPendingTimeout === undefined) localStorage.awaitPendingTimeout = false;
+    if (localStorage.refreshTimes === undefined) localStorage.refreshTimes = 0;
+    if (localStorage.collectCurId === undefined) alert('collectCurId未设置');
+    if (localStorage.emailCurIdIndex === undefined) alert('emailCurIdIndex未设置');
     if(localStorage.idArray === undefined) {
-      //localStorage.idArray = '[]';
-      
-      //localStorage.collectCurId = this.collectCurId;
-      //localStorage.emailCurIdIndex = this.emailCurIdIndex;
-      //localStorage.letterCurIndex = 0;
-      //localStorage.letterArr = '[]';
+      alert('idArray未设置');
+    } else {
+      localStorage.idArrayLength = JSON.parse(localStorage.idArray).length;
     }
+    this.changeView();
   },
   generateLetter(letter, manName, ladyName) {
     return `Dear ${manName}\r\n\r\n${letter}\r\n\r\n${ladyName}`;
@@ -184,12 +274,12 @@ CollectEmail.prototype = {
         }
         
       })).fail((xhr)=>{
-        this.handleFail(xhr, 'getNameXhrFailTimes', this.pendingLimit, id, this.refresh);
+        this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
         reject('fail');
       }).always(()=>{
-        let getNamePendingAmount = +localStorage.getNamePendingAmount;
-        if(getNamePendingAmount > 0) localStorage.getNamePendingAmount = --getNamePendingAmount;
-        this.resetHoldingPendingTimes('getNameHoldingPendingTimes');
+        let pendingAmount = +localStorage.pendingAmount;
+        if(pendingAmount > 0) localStorage.pendingAmount = --pendingAmount;
+        this.resetHoldingPendingTimes('holdingPendingTimes');
       });
     });
   },
@@ -205,9 +295,9 @@ CollectEmail.prototype = {
     let timeSpan = this.requestTimeSpan;
     this.clock = setInterval(()=>{
       let pendingAmount = +localStorage.pendingAmount;
-      let curId, selector, btnText, completeText, letter, letterCurIndex, letterArr, getNamePendingAmount, emailCurIdIndex;
+      let curId, selector, btnText, completeText, letter, letterCurIndex, letterArr, emailCurIdIndex;
       selector = '#sendEmail';
-      btnText = '开始发信';
+      btnText = '开始本地ID发信';
       completeText = '邮件已发完毕';
       emailCurIdIndex = +localStorage.emailCurIdIndex;
       if (pendingAmount <= this.pendingLimit) {
@@ -222,27 +312,25 @@ CollectEmail.prototype = {
         emailCurIdIndex = +localStorage.emailCurIdIndex;
         localStorage.emailCurIdIndex = ++emailCurIdIndex;
         
-        console.log(`已开始 ${curId}`);
-        getNamePendingAmount = +localStorage.getNamePendingAmount;
+        pendingAmount = +localStorage.pendingAmount;
         letterCurIndex = +localStorage.letterCurIndex;
         letterArr = JSON.parse(localStorage.letterArr);
         letter = letterArr[letterCurIndex];
-        if (getNamePendingAmount <= this.pendingLimit) {
-          localStorage.getNamePendingAmount = ++getNamePendingAmount;
+        if (pendingAmount <= this.pendingLimit) {
+          localStorage.pendingAmount = ++pendingAmount;
           this.getManName(curId).then(manName=>{
             if (typeof manName !== 'string' || manName === 'fail') return;
             letter = this.generateLetter(letter, manName, this.ladyName);
             this.doEmail(curId, letter);
           });
         } else {
-          console.log('getNamePending');
-          this.handleReachPendingLimit('getNameHoldingPendingTimes');
+          this.handleReachPendingLimit('holdingPendingTimes');
         }
         
       } else {
-        console.log('sendingEmailPending');
         this.handleReachPendingLimit('holdingPendingTimes');
       }
+      this.changeView();
     }, timeSpan);
   },
   mutilThreadCollect(sendEmail) {
@@ -252,7 +340,7 @@ CollectEmail.prototype = {
       let maxId, curId, selector, btnText, completeText, nexId;
       maxId = this.collectMaxId;
       selector = '#collectId';
-      btnText = '开始收集id';
+      btnText = sendEmail ? '开始寻找ID发信' : '开始扫描收集ID';
       completeText = '收集ID完成';
       
       if (pendingAmount <= this.pendingLimit) {
@@ -260,7 +348,6 @@ CollectEmail.prototype = {
         localStorage.pendingAmount = ++pendingAmount;
         nexId = this.increaseId(curId);
         this.saveCurId(nexId);
-        console.log(`已开始 ${curId}`);
         if (curId > maxId) {
             clearInterval(this.clock);
             $(selector).text(btnText);
@@ -270,10 +357,9 @@ CollectEmail.prototype = {
         this.doCollect(curId, sendEmail);
         
       } else {
-        console.log('collectIdPending');
         this.handleReachPendingLimit('holdingPendingTimes');
       }
-      
+      this.changeView();
     }, timeSpan);
   },
   doEmail(id,letter, sendEmail) {
@@ -287,7 +373,8 @@ CollectEmail.prototype = {
         manID:id,
         type:'newLetter',
         
-      __VIEWSTATEFIELDCOUNT:2,                                                __VIEWSTATE:'/wEPDwULLTEwMjg2MDU0NzEPZBYCZg9kFgJmD2QWAmYPZBYCAgMPZBYIAgEPFgIeBFRleHQFF0FHRU5DWS5PUklFTlRCUklERVMuTkVUZAIGD2QWAgIBDxBkZBYBZmQCCA9kFgICAw9kFgQCCA8WBh4FdGl0bGVkHgRocmVmBSMvTWFpbC9OZXdMZXR0ZXIuYXNweD9sYWR5SUQ9MTE4NzM1Nx4HVmlzaWJsZWcWAmYPFgIeA2FsdGRkAg4PFgYfAQUESGVscB8CBREvSW5kZXgvSGVscDIuYXNweB8DZxYCZg8WAh8EBQRIZWxwZAIKD2QWAgIFD2QWAgIDD2QWAgIBDw8WBh4HUmF3R3VpZCgpWFN5c3RlbS5HdWlkLCBtc2NvcmxpYiwgVmVy',
+      __VIEWSTATEFIELDCOUNT:2,
+      __VIEWSTATE:'/wEPDwULLTEwMjg2MDU0NzEPZBYCZg9kFgJmD2QWAmYPZBYCAgMPZBYIAgEPFgIeBFRleHQFF0FHRU5DWS5PUklFTlRCUklERVMuTkVUZAIGD2QWAgIBDxBkZBYBZmQCCA9kFgICAw9kFgQCCA8WBh4FdGl0bGVkHgRocmVmBSMvTWFpbC9OZXdMZXR0ZXIuYXNweD9sYWR5SUQ9MTE4NzM1Nx4HVmlzaWJsZWcWAmYPFgIeA2FsdGRkAg4PFgYfAQUESGVscB8CBREvSW5kZXgvSGVscDIuYXNweB8DZxYCZg8WAh8EBQRIZWxwZAIKD2QWAgIFD2QWAgIDD2QWAgIBDw8WBh4HUmF3R3VpZCgpWFN5c3RlbS5HdWlkLCBtc2NvcmxpYiwgVmVy',
       __VIEWSTATE1:'c2lvbj00LjAuMC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI3N2E1YzU2MTkzNGUwODkkZjkzNGQxM2MtOGI0OC00OThiLWE0OWYtZDQwMjQyYTQ3NDMwHgZsYWR5SUQCnbxIHgVtYW5JRAKX49cPZGRkEklTWzFKRYK2lcH9LIbR45bp7Zg=',
       __VIEWSTATEGENERATOR:'94640245',
       ctl00$ctl00$ctl00$ddlLanguageSelect:'English',
@@ -296,10 +383,9 @@ CollectEmail.prototype = {
       }
     }).done((data,statusText)=>{
       localStorage.xhrFailTimes = 0;
-      console.info(`发送信件(${id}): ${statusText}`);
-      if (sendEmail === true) this.msg('Collect Id && Send Email', `已存储且已发送 ${id}`);
+      if (sendEmail === true) this.msg('寻找ID发信', `已发送 ${id}`);
+      if (sendEmail === undefined) this.msg('开始本地ID发信', `已发送 ${id}`);
     }).fail(xhr=>{
-      console.info(`发送信件: ${xhr.statusText}`);
       this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
     }).always(()=>{
       let pendingAmount = +localStorage.pendingAmount;
@@ -310,7 +396,6 @@ CollectEmail.prototype = {
   doCollect(id, sendEmail) {
     let url = this.getUrl(id);
     $.ajax({url:url,type:'GET'}).done(((data,statusText)=>{
-      console.log(`${id}: ${statusText}`);
       let idArray,nextId,idJSON,cantWriteIndex,canWriteIndex,noInfoIndex, startIndex, endIndex, manName, letterCurIndex, letterArr, letter, pendingAmount, emailCurIdIndex;
       let cantWriteFlag = this.cantWriteFlag;
       localStorage.xhrFailTimes = 0;
@@ -318,16 +403,15 @@ CollectEmail.prototype = {
         cantWriteIndex = data.indexOf(cantWriteFlag);
         canWriteIndex = data.indexOf(this.canWriteFlag);
         noInfoIndex = data.indexOf(this.noInfoFlag);
-        console.info(`cantWriteFlag: ${cantWriteIndex}`);
         if(cantWriteIndex === -1 && canWriteIndex !== -1 && noInfoIndex === -1) {
-          idArray = JSON.parse(localStorage.idArray);
-          idArray.push(id);
-          localStorage.idArrayLength = idArray.length;
-          idJSON = JSON.stringify(idArray);
-          this.saveIdArray(idJSON);
-          if (sendEmail === undefined) this.msg('Collect Id', `已存储 ${id}`);
-          if (sendEmail === true) {  //是否需要发信
-            localStorage.emailCurIdIndex = idArray.length - 1;
+          if (sendEmail === undefined) {
+            idArray = JSON.parse(localStorage.idArray);
+            idArray.push(id);
+            localStorage.idArrayLength = idArray.length;
+            idJSON = JSON.stringify(idArray);
+            this.saveIdArray(idJSON);
+            this.msg('Collect Id', `已存储 ${id}`);
+          } else if(sendEmail === true) {
             startIndex = data.indexOf(this.nameFlag);
             startIndex += this.nameFlag.length;
             endIndex = data.indexOf('</td>', startIndex);
@@ -342,13 +426,10 @@ CollectEmail.prototype = {
               this.doEmail(id, letter, true);
             }
           }
-        } else {
-          console.warn(`已跳过 ${id}`);
         }
       }
     }).bind(this))
     .fail((xhr)=>{
-      console.warn(`${id}: ${xhr.statusText}`);
       this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
     }).always(()=>{
       let pendingAmount = +localStorage.pendingAmount;
@@ -357,11 +438,10 @@ CollectEmail.prototype = {
     });
   },
   handleFail(xhr, field, limit, id, fn) {
-    console.log(xhr.statusText);
     let failTimes = +localStorage[field];
     localStorage[field] = ++failTimes;
+    this.$view.find(`#${field}`).text = failTimes;
     if (failTimes > limit) fn();
-    console.warn(`已跳过 ${id}`);
   },
   refresh() {
     clearInterval(this.clock);
@@ -373,22 +453,22 @@ CollectEmail.prototype = {
     if (window.Notification){
         if (Notification.permission === 'granted') {
           let notification;
-					notification = new Notification(title,{body:content,icon:iconUrl});
+          notification = new Notification(title,{body:content,icon:iconUrl});
         } else {
             Notification.requestPermission(function(result) {
               let notification;
                 if (result === 'denied' || result === 'default') {
                     alert('通知权限被拒绝！');
                 } else {
-									  notification = new Notification(title,{body:content,icon:iconUrl});
-								}
-						});
+                    notification = new Notification(title,{body:content,icon:iconUrl});
+                }
+            });
         };
     } else {
       alert('你的浏览器不支持Notification，快去升级chrome吧！');
     }
   }
-}
+};
 
 function Login() {
   let loginSelector = '#ctl00_ContentPlaceHolder1_txtBoxLogin';
@@ -405,7 +485,7 @@ function Login() {
       $pwdEle: await $pwdEle,
       $enterEle: await $enterEle
     }
-  }
+  };
   
   collectEle().then($ele=>{
     let account = '63496';
@@ -414,17 +494,21 @@ function Login() {
     $ele.$pwdEle.val(pwd);
     $ele.$enterEle.get(0).click();
   });
-}
+};
 
 Login.prototype.findEle = CollectEmail.prototype.findEle;
 
+
 (()=>{
   let href = window.location.href;
-  if (href.indexOf('type=newLetter') !== -1) {
-    new CollectEmail();
-  } else if (href.indexOf('Login.aspx') !== -1) {
+  if (href.indexOf('Login.aspx') !== -1) {
     new Login();
   } else if (href.indexOf('default.aspx') !== -1 || href === 'http://agency.orientbrides.net/') {
-    window.location.href = 'http://agency.orientbrides.net/index/ViewLadyCorrespondence.aspx?ladyID=1187357&manID=11111111&type=newLetter';
+    if (href.indexOf('copyPage') === -1) {
+      window.open(href+'?copyPage');
+    } else {
+      new CollectEmail();
+    }
+    
   }
-})()
+})();
