@@ -8,6 +8,8 @@
 // @include      *default.aspx
 // @include      *agency.orientbrides.net/
 // @include      *type=newLetter
+// @include      *GirlsCorrespondenceView.aspx*
+// @include      *4006024680.com*
 // @grant        null
 // ==/UserScript==
 
@@ -32,7 +34,7 @@ CollectEmail.prototype = {
   requestTimeSpan: 50,
   collectMaxId: 33914386,
   pendingLimit: 30,
-  awaitPendingTimeoutM: 0.1,
+  awaitPendingTimeoutM: 2,
   emailCurIdIndex: 0,
   ladyName: 'xiaojun',
   cantWriteFlag: 'Sorry, you can’t write letter to this man. Use presentations instead.',
@@ -85,7 +87,8 @@ CollectEmail.prototype = {
   },
   renderBase() {
     let $view = $(`<div style='background:#fff;'>
-  <button class='btn btn-default' type='button' id='collectId'>开始扫描收集ID</button>
+  <button class='btn btn-default' type='button' id='collectSentId'>开始收集已发信ID</button>
+  <button class='btn btn-default' type='button' id='collectId'>开始寻找ID</button>
   <button class='btn btn-default' type='button' id='sendEmail'>开始本地ID发信</button>
   <button class='btn btn-default' type='button' id='scanIdSendEmail'>开始寻找ID发信</button>
   <button class='btn btn-default' type='button' id='setting'>设置</button>
@@ -124,7 +127,7 @@ CollectEmail.prototype = {
     <source src="http://www.w3school.com.cn/i/song.mp3" type="audio/mpeg">
     你的浏览器不支持audio标签
   </audio>
-  <p id="lastId"></p>
+  <p id="taskLog"></p>
 </div>`)
     .find('button')
     .css({
@@ -139,13 +142,16 @@ CollectEmail.prototype = {
     .on('click',this.controllEmail.bind(this))
     .end()
     .find('#scanIdSendEmail')
-    .on('click',this.cCollectSend.bind(this))
+    .on('click',this.scanIdSendEmail.bind(this))
     .end()
     .find('#table th,#table td')
     .css('outline', '1px solid #000')
     .end()
     .find('#setting')
     .on('click',this.setting.bind(this))
+    .end()
+    .find('#collectSentId')
+    .on('click', this.controlCollectSent.bind(this))
     .end();
 
     this.$view = $view;
@@ -157,32 +163,76 @@ CollectEmail.prototype = {
       this.$view.find(`#${key}`).text(localStorage[key]);
     }
   },
-  getLastSentId() {
+  getSentListUrl(pageNum) {
+    let idArray, con;
+    if (pageNum === 1) {
+      idArray = JSON.parse(localStorage.idArray);
+      if (idArray.length !== 0) {
+        con = confirm('idArray不为空，是否向后添加ID?');
+        if (!con) {
+          return {msg: '请清空idArray'}
+        }
+      }
+      return `http://agency.orientbrides.net/Mail/GirlsCorrespondenceView.aspx?type=1&includeAll=true&ladyID=${this.ladyId}&sortBy=0&sortDirection=1&groupByMan=1&showTotalCount=False`;
+    } else if (pageNum > 1) {
+      return `http://agency.orientbrides.net/Mail/GirlsCorrespondenceView.aspx?type=1&includeAll=true&ladyID=${this.ladyId}&sortBy=0&sortDirection=1&groupByMan=1&showTotalCount=False&pageNum=${pageNum}`;
+    }
+  },
+  doCollectSentId() {
+    this.collectSentId().then(()=>{
+      this.doCollectSentId();
+    }, errMsg=>{
+      this.$view.find('#myMp3').get(0).play();
+      this.$view.find('#collectSentId').text('开始收集已发信ID');
+      alert(errMsg);
+    });
+  },
+  collectSentId() {
     return new Promise((resolve, reject)=>{
-      let url = `http://agency.orientbrides.net/Mail/GirlsCorrespondenceView.aspx?type=1&includeAll=true&ladyID=${this.ladyId}&sortBy=0&sortDirection=1&groupByMan=1&showTotalCount=False`;
+      let pageNum = +localStorage.pageNum;
+      let collectSentIdController = localStorage.collectSentIdController;
+      let url = this.getSentListUrl(pageNum);
+      if (collectSentIdController === 'pause') reject('已停止收集已发信ID');
+      if (typeof url !== 'string') reject(url.msg);
       $.ajax({url:url,type:'GET'})
         .done(data=>{
-          let startStr = 'ctl00_ctl00_ContentPlaceHolder1_nestedContentPlaceHolder_cntrlCorrespondenceSwitcher_ctl00_rptCorrespondenceOutbox_ctl00_hypLnkCorrespondentName';
-          let startIndex = data.indexOf(startStr) + startStr.length;
-          let endStr = `">`;
-          let endIndex = data.indexOf(endStr, startIndex);
-          let reduceStartStr = 'manID=';
-          let reduceStartIndex = data.indexOf(reduceStartStr, startIndex) + reduceStartStr.length;
-          let manId = data.substring(reduceStartIndex, endIndex);
-          this.msg('LAST ID', `获取上一次发送的ID成功: ${manId}`);
-          resolve(mainId);
+          let $html = $(data);
+          let $hrefCollect = $html.find('.agencyMailStats tr').not('.agencyMailStats tr:first').find('td:first a');
+          let curPageIdArr = [];
+          let idArray = JSON.parse(localStorage.idArray);
+          this.$view.find('#taskLog').text(`最近收集的时间：${new Date()}, 页数: ${pageNum}`);
+          $hrefCollect.each((index, item)=>{
+            curPageIdArr.push(+item.href.replace('http://agency.orientbrides.net/index/ViewLadyCorrespondence.aspx?ladyID=1187357&manID=', ''));
+          });
+          idArray.push(...curPageIdArr);
+          this.$view.find('#idArrayLength').text(idArray.length);
+          localStorage.idArray = JSON.stringify(idArray);
+          if (curPageIdArr.length < 32 && pageNum !== 1) reject('收集已发信ID完成');
+          localStorage.pageNum = ++pageNum;
+          resolve();
         })
        .fail(()=>{
-        this.msg('LAST ID', '获取上一次发送的ID失败');
-        reject('fail');
+        reject(`获取第${pageNum}页失败`);
       });
     });
   },
-  cCollectSend(e) {
+  controlCollectSent(e) {
+    let $ele = $(e.target);
+    this.$view.find('button').not('#collectSentId,#setting').css('display', 'none');
+    if ($ele.text() === '开始收集已发信ID') {
+      localStorage.theTypeOfTaskBeingPerformed = 'collectSentId';
+      localStorage.collectSentIdController = 'play';
+      this.doCollectSentId();
+      $ele.text('暂停收集已发信ID');
+    } else if ($ele.text() === '暂停寻找ID发信') {
+      $ele.text('开始收集已发信ID');
+      localStorage.collectSentIdController = 'pause';
+    }
+  },
+  scanIdSendEmail(e) {
     let $ele = $(e.target);
     this.resetByBtn();
-    $('#collectId').css('display', 'none');
-    $('#sendEmail').css('display', 'none');
+    this.$view.find('button').not('#scanIdSendEmail,#setting').css('display', 'none');
     if ($ele.text() === '开始寻找ID发信') {
       localStorage.theTypeOfTaskBeingPerformed = 'scanIdSendEmail';
       $ele.text('暂停寻找ID发信');
@@ -195,14 +245,13 @@ CollectEmail.prototype = {
   controlCollect(e) {
     let $ele = $(e.target);
     this.resetByBtn();
-    $('#sendEmail').css('display', 'none');
-    $('#scanIdSendEmail').css('display', 'none');
-    if ($ele.text() === '开始扫描收集ID') {
+    this.$view.find('button').not('#collectId,#setting').css('display', 'none');
+    if ($ele.text() === '开始寻找ID') {
       localStorage.theTypeOfTaskBeingPerformed = 'collectId';
-      $ele.text('暂停扫描收集ID');
+      $ele.text('暂停寻找ID');
       this.mutilThreadCollect();
-    } else if ($ele.text() === '暂停扫描收集ID') {
-      $ele.text('开始扫描收集ID');
+    } else if ($ele.text() === '暂停寻找ID') {
+      $ele.text('开始寻找ID');
       clearInterval(CollectEmail.clock);
     }
   },
@@ -211,8 +260,7 @@ CollectEmail.prototype = {
     let idArray = localStorage.idArray;
     this.resetByBtn();
     window.idArray = JSON.parse(idArray);
-    $('#collectId').css('display', 'none');
-    $('#scanIdSendEmail').css('display', 'none');
+    this.$view.find('button').not('#sendEmail,#setting').css('display', 'none');
     if ($ele.text() === '开始本地ID发信') {
       localStorage.theTypeOfTaskBeingPerformed = 'sendEmail';
       $ele.text('暂停本地ID发信');
@@ -226,9 +274,6 @@ CollectEmail.prototype = {
     if (localStorage.platform === 'ANDROID') localStorage.awaitPendingTimeout = 'false';
     localStorage.xhrFailTimes = 0;
     localStorage.refreshTimes = 0;
-    localStorage.pendingAmount = 0;
-    localStorage.pendingAmount = 0;
-    localStorage.pendingAmount = 0;
     localStorage.pendingAmount = 0;
     localStorage.holdingPendingTimes = this.awaitPendingTimeoutLimit();
   },
@@ -262,6 +307,7 @@ CollectEmail.prototype = {
     if (localStorage.letterArr === undefined) localStorage.letterArr = JSON.stringify(this.letterArr);
     if (localStorage.awaitPendingTimeout === undefined) localStorage.awaitPendingTimeout = false;
     if (localStorage.refreshTimes === undefined) localStorage.refreshTimes = 0;
+    if (localStorage.pageNum === undefined) localStorage.pageNum = 1;
     if (localStorage.platform === undefined) localStorage.platform = 'PC';
     if (localStorage.collectCurId === undefined) alert('collectCurId未设置');
     if (localStorage.emailCurIdIndex === undefined) alert('emailCurIdIndex未设置');
@@ -360,7 +406,7 @@ CollectEmail.prototype = {
       let maxId, curId, selector, btnText, completeText, nexId;
       maxId = this.collectMaxId;
       selector = '#collectId';
-      btnText = sendEmail ? '开始寻找ID发信' : '开始扫描收集ID';
+      btnText = sendEmail ? '开始寻找ID发信' : '开始寻找ID';
       completeText = '收集ID完成';
       
       if (pendingAmount <= this.pendingLimit) {
@@ -405,7 +451,7 @@ CollectEmail.prototype = {
       this.reduceXhrFailTimes();
       if (sendEmail === true) this.msg('寻找ID发信', `已发送 ${id}`);
       if (sendEmail === undefined) this.msg('本地ID发信', `已发送 ${id}`);
-      this.$view.find('#lastId').text(`最近一次发送的时间与ID: ${new Date()} ${id}`);
+      this.$view.find('#taskLog').text(`最近一次发送的时间与ID: ${new Date()} ${id}`);
     }).fail(xhr=>{
       this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
     }).always(()=>{
@@ -476,6 +522,7 @@ CollectEmail.prototype = {
     if (localStorage.awaitPendingTimeout === 'true') return;
     clearInterval(CollectEmail.clock);
     if (platform === 'PC') {
+      $('#myMp3').get(0).play();
       window.location.reload(true);
     } else if (platform === 'ANDROID') {
       $('#myMp3').get(0).play();
@@ -488,7 +535,7 @@ CollectEmail.prototype = {
         $('#sendEmail').text('开始本地ID发信');
         break;
       case 'collectId':
-        $('#collectId').text('开始扫描收集ID');
+        $('#collectId').text('开始寻找ID');
         break;
     }
     localStorage.awaitPendingTimeout = 'true';
@@ -549,7 +596,14 @@ Login.prototype.findEle = CollectEmail.prototype.findEle;
     new Login();
   } else if (href.indexOf('default.aspx') !== -1 || href === 'http://agency.orientbrides.net/') {
     window.location.href = 'http://agency.orientbrides.net/index/ViewLadyCorrespondence.aspx?ladyID=1187357&manID=11111111&type=newLetter';
-  } else if (href.indexOf('type=newLetter') !== -1) {
+  } else if (href.indexOf('type=newLetter') !== -1 || href.indexOf('GirlsCorrespondenceView.aspx') !== -1) {
     new CollectEmail();
+  } else if (href.indexOf('4006024680.com') !== -1) {
+    $music = $(`<audio controls="controls" id="myMp3" loop="true" style='margin-top: 5px;'>
+    <source src="http://www.w3school.com.cn/i/song.mp3" type="audio/mpeg">
+    你的浏览器不支持audio标签
+  </audio>
+`);
+    $music.prepend('body').get(0).play();
   }
 })();
