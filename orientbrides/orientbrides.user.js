@@ -30,10 +30,12 @@ function CollectEmail() {
 };
 
 CollectEmail.prototype = {
+  collectSentIdLimit: 13132967,
   ladyId: 1187357,
   requestTimeSpan: 50,
   collectMaxId: 33914386,
-  pendingLimit: 30,
+  pendingLimit: 50,
+  xhrFailLimit: 30,
   awaitPendingTimeoutM: 2,
   emailCurIdIndex: 0,
   ladyName: 'xiaojun',
@@ -207,7 +209,8 @@ CollectEmail.prototype = {
           idArray.push(...curPageIdArr);
           this.$view.find('#idArrayLength').text(idArray.length);
           localStorage.idArray = JSON.stringify(idArray);
-          if (curPageIdArr.length < 32 && pageNum !== 1) reject('收集已发信ID完成');
+          //if (curPageIdArr.length < 32 && pageNum !== 1) reject('收集已发信ID完成');
+          if (curPageIdArr[curPageIdArr.length-1] < this.collectSentIdLimit) reject('收集已发信ID完成');
           localStorage.pageNum = ++pageNum;
           resolve();
         })
@@ -224,16 +227,16 @@ CollectEmail.prototype = {
       localStorage.collectSentIdController = 'play';
       this.doCollectSentId();
       $ele.text('暂停收集已发信ID');
-    } else if ($ele.text() === '暂停寻找ID发信') {
+    } else if ($ele.text() === '暂停收集已发信ID') {
       $ele.text('开始收集已发信ID');
       localStorage.collectSentIdController = 'pause';
     }
   },
   scanIdSendEmail(e) {
     let $ele = $(e.target);
-    this.resetByBtn();
     this.$view.find('button').not('#scanIdSendEmail,#setting').css('display', 'none');
     if ($ele.text() === '开始寻找ID发信') {
+      this.resetByBtn();
       localStorage.theTypeOfTaskBeingPerformed = 'scanIdSendEmail';
       $ele.text('暂停寻找ID发信');
       this.mutilThreadCollect(true);
@@ -244,9 +247,9 @@ CollectEmail.prototype = {
   },
   controlCollect(e) {
     let $ele = $(e.target);
-    this.resetByBtn();
     this.$view.find('button').not('#collectId,#setting').css('display', 'none');
     if ($ele.text() === '开始寻找ID') {
+      this.resetByBtn();
       localStorage.theTypeOfTaskBeingPerformed = 'collectId';
       $ele.text('暂停寻找ID');
       this.mutilThreadCollect();
@@ -258,10 +261,10 @@ CollectEmail.prototype = {
   controllEmail(e) {
     let $ele = $(e.target);
     let idArray = localStorage.idArray;
-    this.resetByBtn();
     window.idArray = JSON.parse(idArray);
     this.$view.find('button').not('#sendEmail,#setting').css('display', 'none');
     if ($ele.text() === '开始本地ID发信') {
+      this.resetByBtn();
       localStorage.theTypeOfTaskBeingPerformed = 'sendEmail';
       $ele.text('暂停本地ID发信');
       this.mutilThreadEmail();
@@ -338,7 +341,7 @@ CollectEmail.prototype = {
         }
         
       })).fail((xhr)=>{
-        this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
+        this.handleFail(xhr, 'xhrFailTimes', this.xhrFailLimit, id, this.refresh);
         reject('fail');
       }).always(()=>{
         let pendingAmount = +localStorage.pendingAmount;
@@ -449,11 +452,11 @@ CollectEmail.prototype = {
       }
     }).done((data,statusText)=>{
       this.reduceXhrFailTimes();
-      if (sendEmail === true) this.msg('寻找ID发信', `已发送 ${id}`);
+      //if (sendEmail === true) this.msg('寻找ID发信', `已发送 ${id}`);
       if (sendEmail === undefined) this.msg('本地ID发信', `已发送 ${id}`);
       this.$view.find('#taskLog').text(`最近一次发送的时间与ID: ${new Date()} ${id}`);
     }).fail(xhr=>{
-      this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
+      this.handleFail(xhr, 'xhrFailTimes', this.xhrFailLimit, id, this.refresh);
     }).always(()=>{
       let pendingAmount = +localStorage.pendingAmount;
       if(pendingAmount > 0) localStorage.pendingAmount = --pendingAmount;
@@ -503,7 +506,7 @@ CollectEmail.prototype = {
       }
     }).bind(this))
     .fail((xhr)=>{
-      this.handleFail(xhr, 'xhrFailTimes', this.pendingLimit, id, this.refresh);
+      this.handleFail(xhr, 'xhrFailTimes', this.xhrFailLimit, id, this.refresh);
     }).always(()=>{
       let pendingAmount = +localStorage.pendingAmount;
       if(pendingAmount > 0) localStorage.pendingAmount = --pendingAmount;
@@ -592,6 +595,11 @@ Login.prototype.findEle = CollectEmail.prototype.findEle;
 
 (()=>{
   let href = window.location.href;
+  let $music = $(`<audio controls="controls" id="myMp3" loop="true" style='margin-top: 5px;'>
+      <source src="http://www.w3school.com.cn/i/song.mp3" type="audio/mpeg">
+      你的浏览器不支持audio标签
+    </audio>
+  `);
   if (href.indexOf('Login.aspx') !== -1) {
     new Login();
   } else if (href.indexOf('default.aspx') !== -1 || href === 'http://agency.orientbrides.net/') {
@@ -599,11 +607,11 @@ Login.prototype.findEle = CollectEmail.prototype.findEle;
   } else if (href.indexOf('type=newLetter') !== -1 || href.indexOf('GirlsCorrespondenceView.aspx') !== -1) {
     new CollectEmail();
   } else if (href.indexOf('4006024680.com') !== -1) {
-    $music = $(`<audio controls="controls" id="myMp3" loop="true" style='margin-top: 5px;'>
-    <source src="http://www.w3school.com.cn/i/song.mp3" type="audio/mpeg">
-    你的浏览器不支持audio标签
-  </audio>
-`);
     $music.prepend('body').get(0).play();
   }
+  
+  //未连接到互联网
+  $(()=>{
+    if($('#main-frame-error').size()) $music.prepend('body').get(0).play();
+  });
 })();
