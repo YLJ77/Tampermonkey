@@ -97,7 +97,7 @@ ShowCaption.prototype = {
             }
 
             if (isLastLi) {
-                clearInterval(clock);
+                clearInterval(this.clock);
             }
         }, 10);
     },
