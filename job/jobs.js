@@ -82,7 +82,10 @@ async function getJobs({ jobs = [], page = 1, idMapJob = {}, isRecursive = true 
         await getJobs({ jobs, page: page + 1 });
     }
      if (!isRecursive) {
+         let oldJobs = JSON.parse(localStorage.oldJobs);
+         jobs = jobs.filter(job => !oldJobs.includes(job));
         localStorage.jobs = JSON.stringify(jobs);
+        localStorage.oldJobs = JSON.stringify([...new Set([...oldJobs, ...jobs])]);
     }
     return jobs;
 }
@@ -102,8 +105,9 @@ function createBtn() {
 function init() {
   localStorage.begin = 0;
   localStorage.end = maxPage;
+  if (!localStorage.oldJobs) localStorage.oldJobs = [];
 }
 
 init();
-//getJobs({isRecursive: false});
+getJobs({isRecursive: false});
 createBtn();
