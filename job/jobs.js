@@ -52,7 +52,7 @@ async function openPage() {
         setTimeout(() => {
             window.open(`https://www.lagou.com/jobs/${ids[i]}.html`);
             resolve(i);
-        }, 500);
+        }, 1000);
       });
       console.log(i);
       
@@ -105,7 +105,7 @@ function createBtn() {
 function init() {
   localStorage.begin = 0;
   localStorage.end = maxPage;
-  if (!localStorage.oldJobs) localStorage.oldJobs = [];
+  if (!localStorage.oldJobs) localStorage.oldJobs = '[]';
 }
 
 init();
