@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        New script - lagou.com
+// @name        lg_jog_detail - lagou.com
 // @namespace   Violentmonkey Scripts
 // @match       https://www.lagou.com/jobs/*.html
 // @grant       none
@@ -8,15 +8,20 @@
 // @description 2020/8/24 下午3:23:04
 // ==/UserScript==
 
-const $jobAdvantage = $('job-advantage');
 const $jobDetail = $('.job-detail');
 
-const danger = 'color:red;font-weight:bold;';
-const success = 'color:green;font-weight:bold;';
+const commonStyle = 'font-weight:bold;font-size:18px;';
+const danger = `color:red;${commonStyle}`;
+const nice = `color:green;${commonStyle}`;
+const typeMapStyle = { danger, nice };
 
-[$jobAdvantage,$jobDetail].forEach(ele => {
-    ele.html($jobDetail.html()
-        .replace('本科', `<span style=${danger}>本科</span>`)
-        .replace('大专', `<span style=${success}>大专</span>`)
-        .replace('双休', `<span style=${success}>双休</span>`))
-})
+const tags = [
+    {type: 'danger',title: '本科'},
+    {type: 'nice',title: '专科'},
+    {type: 'nice',title: '双休'},
+];
+const html = tags.reduce((acc, tag) => {
+    return acc.replace(tag.title,`<span style=${typeMapStyle[tag.type]}>${tag.title}</span>`);
+}, $jobDetail.html());
+
+$jobDetail.html(html);
