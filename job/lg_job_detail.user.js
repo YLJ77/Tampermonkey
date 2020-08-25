@@ -18,8 +18,10 @@ const typeMapStyle = { danger, nice };
 const tags = [
     {type: 'danger',title: '本科'},
     {type: 'danger',title: '偶尔加班'},
+    {type: 'danger',title: '5年以上'},
     {type: 'nice',title: '专科'},
     {type: 'nice',title: '双休'},
+    {type: 'nice',title: '休二'},
     {type: 'nice',title: '不加班'},
     {type: 'nice',title: '朝九晚六'},
     {type: 'nice',title: '六险一金'},
