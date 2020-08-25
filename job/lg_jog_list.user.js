@@ -107,8 +107,14 @@ class Actions {
                 $(this).css({display: 'block'});
             });
         })
+        const $switchBtn = $(`<button style="${btnStyle}">启动筛选</button>`).click( function() {
+            let isOn = localStorage.getItem('isOn');
+            isOn = isOn === '1' || isOn === null;
+            $(this).text(isOn ? '暂停筛选' : '启动筛选');
+            localStorage.setItem('isOn', isOn ? 0 : 1);
+        })
         const wrapper = $('#s_position_list');
-        wrapper.prepend($showAllBtn);
+        wrapper.prepend($showAllBtn, $switchBtn);
         addBtns();
     }
 }
