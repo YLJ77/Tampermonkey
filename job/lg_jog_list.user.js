@@ -93,9 +93,9 @@ class Actions {
                 } else {
                     clearInterval(this.clockId);
                     this.clickedIdx = 0;
-                    const continueRun = window.confirm('继续下一页？');
+                    await this.toNextPage();
+                    const continueRun = window.confirm('继续筛选？');
                     if(continueRun) {
-                        await this.toNextPage();
                         this.run();
                     } else {
                         this.resetControl();
@@ -104,6 +104,7 @@ class Actions {
             } else {
                 clearInterval(this.clockId);
                 this.resetControl();
+                window.alert('筛选完成！');
             }
         }, 1000);
     }
