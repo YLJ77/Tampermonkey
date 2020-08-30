@@ -20,6 +20,8 @@ const tags = [
     {type: 'danger',title: '偶尔加班'},
     {type: 'danger',title: '5年以上'},
     {type: 'danger',title: 'Egret'},
+    {type: 'danger',title: 'ActionScript'},
+    {type: 'danger',title: 'Unity3D'},
     {type: 'nice',title: '专科'},
     {type: 'nice',title: '双休'},
     {type: 'nice',title: '休二'},
