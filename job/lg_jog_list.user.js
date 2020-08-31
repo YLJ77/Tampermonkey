@@ -2,6 +2,7 @@
 // @name        lg_jog_list - lagou.com
 // @namespace   Violentmonkey Scripts
 // @match       https://www.lagou.com/jobs/list*
+// @match       https://www.zhipin.com/c101280100/*
 // @grant       none
 // @version     1.0
 // @author      -
@@ -73,7 +74,45 @@ class Actions {
     btnStyle = 'color:red;border:1px solid #ccc;padding: 5px 10px;';
     companyName = '';
     constructor() {
+        this.selector = this.getSelectorInfo();
         this.appendActions();
+    }
+    getPageType() {
+        const href = window.location.href;
+        let pageType;
+        if (href.includes('lagou')) {
+            pageType = 'lagou';
+        } else if (href.includes('zhipin')) {
+            pageType = 'zhipin';
+        }
+        return pageType;
+    }
+    getSelectorInfo() {
+        const map = {
+            lagou: {
+                pageType: 'lagou',
+                companyList: '.item_con_list li',
+                companyName: '.company_name a',
+                btnWrapper: '.li_b_r',
+                jobListWrapper: '#s_position_list',
+                pageWrapper: '#s_position_list',
+                nextPage: '.pager_next',
+                releaseTime: '.format-time',
+                timeLimit: '1天前发布'
+            },
+            zhipin: {
+                pageType: 'zhipin',
+                companyList: '.job-list li',
+                companyName: 'h3.name a',
+                btnWrapper: '.info-primary',
+                jobListWrapper: '#main',
+                pageWrapper: '.page',
+                nextPage: 'a.next',
+                releaseTime: '.job-pub-time',
+                timeLimit: '发布于昨天'
+            }
+        }
+        return map[this.getPageType()];
     }
     resetControl() {
         $('#off-btn').css({display: 'none'});
@@ -81,20 +120,30 @@ class Actions {
         localStorage.setItem('isOn', 0);
     }
     run() {
+        const {selector} = this;
         this.clockId = setInterval(async() => {
-            const time = this.$companyList.find('.format-time').eq(this.clickedIdx).text().trim();
-            if (time !== '1天前发布') {
+            const time = this.$companyList.find(selector.releaseTime).eq(this.clickedIdx).text().trim();
+            if (time !== selector.timeLimit) {
                 if (this.clickedIdx <= this.$companyList.length - 1) {
-                    const companyName = this.$companyList.find('.company_name a').eq(this.clickedIdx).text().trim();
-                    if (!blackList.getItem('blackList').includes(companyName)) {
-                        this.$companyList.find('.position_link').get(this.clickedIdx).click();
+                    const companyName = this.$companyList.find(selector.companyName).eq(this.clickedIdx).text().trim();
+                    if (blackList.getItem('blackList').includes(companyName)) {
+                        this.clickedIdx += 1;
+                        clearInterval(this.clockId);
+                        this.run();
+                    } else {
+                        if (selector.pageType === 'lagou') {
+                            this.$companyList.find('.position_link').get(this.clickedIdx).click();
+                        } else if (selector.pageType === 'zhipin') {
+                            this.$companyList.get(this.clickedIdx).click();
+                        }
+                        this.clickedIdx += 1;
                     }
-                    this.clickedIdx += 1;
                 } else {
                     clearInterval(this.clockId);
                     this.clickedIdx = 0;
                     await this.toNextPage();
                     const continueRun = window.confirm('继续筛选？');
+                    console.log(continueRun);
                     if(continueRun) {
                         this.run();
                     } else {
@@ -103,49 +152,53 @@ class Actions {
                 }
             } else {
                 clearInterval(this.clockId);
+                this.clickedIdx = 0;
                 this.resetControl();
                 window.alert('筛选完成！');
             }
         }, 1000);
     }
     isLoaded() {
-        const companyName = $('.item_con_list li').eq(0).find('.company_name a').text().trim();
+        const {selector} = this;
+        const companyName = $(selector.companyList).eq(0).find(selector.companyName).text().trim();
         return companyName !== this.companyName;
     }
     add_B_W_btns() {
-        const $companyList = this.$companyList = $('.item_con_list li');
-        const {btnStyle} = this;
+        const {btnStyle,selector} = this;
+        const $companyList = this.$companyList = $(selector.companyList);
         const _this = this;
         $companyList.each(function(index){
-            const companyName = $(this).find('.company_name a').text().trim();
+            const companyName = $(this).find(selector.companyName).text().trim();
             if (index === 0) _this.companyName = companyName;
-            const target = $(this).find('.li_b_r');
-            const $blackBtn = $(`<button class="black" style="${btnStyle}">加入黑名单</button>`).click(() => {
+            const btnWrapper = $(this).find(selector.btnWrapper);
+            const $blackBtn = $(`<button class="black" style="${btnStyle}">加入黑名单</button>`).click((e) => {
+                e.stopPropagation();
                 blackList.addItem(companyName);
                 $(this).css({display: 'none'});
-                target.find('button').css({display: 'none'});
-                target.find('button.white').css({display: 'inline'});
+                btnWrapper.find('button').css({display: 'none'});
+                btnWrapper.find('button.white').css({display: 'inline'});
             })
-            const $whiteBtn = $(`<button class="white" style="${btnStyle}">加入白名单</button>`).click(() => {
+            const $whiteBtn = $(`<button class="white" style="${btnStyle}">加入白名单</button>`).click((e) => {
+                e.stopPropagation();
                 blackList.removeItem(companyName);
-                target.find('button').css({display: 'none'});
-                target.find('button.black').css({display: 'inline'});
+                btnWrapper.find('button').css({display: 'none'});
+                btnWrapper.find('button.black').css({display: 'inline'});
             })
             const bList = blackList.getItem('blackList');
-            target.find('button').css({display: 'none'});
+            btnWrapper.find('button').css({display: 'none'});
             if (bList.includes(companyName)) {
                 $blackBtn.css({display: 'none'});
                 $(this).css({display: 'none'});
             } else {
                 $whiteBtn.css({display: 'none'});
             }
-            target.prepend($blackBtn, $whiteBtn);
+            btnWrapper.prepend($blackBtn, $whiteBtn);
         })
     }
     async appendActions() {
-        await waitToLoad(() => $('.item_con_list li .company_name a').length);
-        const $companyList = $('.item_con_list li');
-        const {btnStyle} = this;
+        const {btnStyle,selector} = this;
+        await waitToLoad(() => $(`${selector.companyList} ${selector.companyName}`).length);
+        const $companyList = $(selector.companyList);
         const $showAllBtn = $(`<button style="${btnStyle}">显示所有</button>`).click(() => {
             $companyList.each(function() {
                 $(this).css({display: 'block'});
@@ -164,16 +217,16 @@ class Actions {
             $('#on-btn').css({display: 'inline'});
             $(this).css({display: 'none'});
         })
-        const wrapper = $('#s_position_list');
-        wrapper.prepend($showAllBtn, $onBtn, $offBtn);
+        const jobListWrapper = $(selector.jobListWrapper);
+        jobListWrapper.prepend($showAllBtn, $onBtn, $offBtn);
         this.add_B_W_btns();
         this.bindChangePageEvt();
     }
     bindChangePageEvt() {
-        const {btnStyle} = this;
-        $('.s_position_list ').append(
+        const {btnStyle,selector} = this;
+        $(selector.pageWrapper).append(
             $(`<button id="my-next-page" style="${btnStyle}">自定义下一页</button>`).click(async() => {
-                $('.pager_next').get(0).click();
+                $(selector.nextPage).get(0).click();
             })
         )
     }
