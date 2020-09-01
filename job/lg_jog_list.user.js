@@ -77,7 +77,7 @@ class Actions {
         this.selector = this.getSelectorInfo();
         this.appendActions();
     }
-    getPageType() {
+    getPlateform() {
         const href = window.location.href;
         let pageType;
         if (href.includes('lagou')) {
@@ -109,10 +109,11 @@ class Actions {
                 pageWrapper: '.page',
                 nextPage: 'a.next',
                 releaseTime: '.job-pub-time',
-                timeLimit: '发布于昨天'
+                // timeLimit: '发布于昨天'
+                timeLimit: '发布于08-30'
             }
         }
-        return map[this.getPageType()];
+        return map[this.getPlateform()];
     }
     resetControl() {
         $('#off-btn').css({display: 'none'});
