@@ -1,14 +1,3 @@
-// ==UserScript==
-// @name        lg_jog_list - lagou.com
-// @namespace   Violentmonkey Scripts
-// @match       https://www.lagou.com/jobs/list*
-// @match       https://www.zhipin.com/c101280100/*
-// @grant       none
-// @version     1.0
-// @author      -
-// @description 2020/8/24 下午3:23:04
-// ==/UserScript==
-
 class Storage {
     constructor(key) {
         this.init(key);
@@ -76,6 +65,10 @@ class Actions {
     constructor() {
         this.selector = this.getSelectorInfo();
         this.appendActions();
+        this.appendMountEle();
+    }
+    appendMountEle() {
+        $('body').prepend('<div id="app"></div>')
     }
     getPlateform() {
         const href = window.location.href;
@@ -240,4 +233,4 @@ class Actions {
 }
 
 
-new Actions();
+window.location.href.includes('lagou') && new Actions();
