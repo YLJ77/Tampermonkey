@@ -36,6 +36,7 @@
     "chromedriver": "85",
     "less": "2",
     "less-loader": "^7.0.2",
+    "null-loader": "^4.0.1",
     "sass": "^1.26.5",
     "sass-loader": "^8.0.2",
     "typescript": "~3.9.3",
