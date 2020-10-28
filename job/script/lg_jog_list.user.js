@@ -68,7 +68,7 @@ class Actions {
         this.appendMountEle();
     }
     appendMountEle() {
-        $('body').prepend('<div id="app"></div>')
+        $('body').prepend('<div id="app" class="spa-app"></div>')
     }
     getPlateform() {
         const href = window.location.href;

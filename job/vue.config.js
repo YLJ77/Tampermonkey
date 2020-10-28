@@ -1,16 +1,15 @@
 const webpack = require('webpack');
-const StringReplacePlugin = require("string-replace-webpack-plugin");
 const path = require('path');
+const fs = require('fs');
 
 module.exports = {
     css: {
         extract: false,
     },
     configureWebpack: config => {
+        // 删除ant-design base样式
         const lessRule = config.module.rules.find(entry => entry.test.source === '\\.less$')
-        // lessRule && (lessRule.exclude = [path.resolve(__dirname,'node_modules/ant-design-vue/es/style/core/base.less')]);
         if (lessRule) {
-            // lessRule.enforce = 'pre';
             lessRule.oneOf.forEach(entry => {
                 const {use} = entry;
                 const lastUse = use[use.length - 1];
@@ -18,12 +17,15 @@ module.exports = {
                     // More information about available properties https://webpack.js.org/api/loaders/
                     const { resourcePath, rootContext } = loaderContext;
                     const relativePath = path.relative(rootContext, resourcePath);
-    // console.log(`
-    // '${relativePath}'`);
-if (relativePath === 'node_modules\\ant-design-vue\\es\\style\\index.less') {
-    console.log(relativePath);
-    console.log(content);
-}
+                    if (relativePath === 'node_modules\\ant-design-vue\\es\\style\\index.less') {
+                        const filePath = path.join(__dirname, 'node_modules/ant-design-vue/es/style/core/index.less');
+                        let data = fs.readFileSync(filePath);
+                        data = data.toString();
+                        if (data.includes("@import 'base';")) {
+                            fs.writeFileSync(filePath, data.replace("@import 'base';", ''), { flag: 'w' });
+                            console.log('\n删除ant-design base样式成功');
+                        }
+                    }
                     // if (relativePath === 'styles/foo.less') {
                     //   return '@value: 100px;' + content;
                     // }

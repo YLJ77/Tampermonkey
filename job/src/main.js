@@ -4,6 +4,7 @@ import router from './router'
 import store from './store'
 import { Button, Form, Input,Select, Checkbox, Dropdown, Upload, message, Alert, Menu, PageHeader, Table, Modal, Collapse } from 'ant-design-vue';
 import '@/assets/common.scss'
+import '@/assets/base.less'
 import '../script/lg_jog_list.user'
 
 const app = createApp(App);
