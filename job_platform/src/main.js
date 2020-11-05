@@ -1,37 +1,12 @@
-// ==UserScript==
-// @name        jog_list - lagou.com
-// @namespace   Violentmonkey Scripts
-// @match       https://www.lagou.com/jobs/list*
-// @match       https://www.zhipin.com/c101280100/*
-// @grant       none
-// @version     1.0
-// @author      -
-// @description 2020/8/24 下午3:23:04
-// ==/UserScript==
-
-    class Storage {
-    constructor(key) {
-        this.init(key);
-    }
-    init(key) {
-        const item = this.getItem(key);
-        if (!item)  this.setItem(key, []);
-    }
-    getItem(key) {
-        return localStorage.getItem(key) ?
-            JSON.parse(localStorage.getItem(key))
-            :
-            undefined;
-    }
-    setItem(key, val) {
-        localStorage.setItem(key, JSON.stringify(val));
-    }
-}
+import Storage from "src/utils/Storage";
+import {waitToLoad} from "src/utils/appFun";
+import 'src/assets/style.less'
+import {LoginPanel} from "src/LoginPanel";
 
 class BlackList extends Storage {
-    blackList = [];
     constructor() {
         super('blackList');
+        this.blackList = []
     }
     updateList(list) {
         this.setItem('blackList', list);
@@ -50,33 +25,18 @@ class BlackList extends Storage {
 
 const blackList = new BlackList();
 
-function waitToLoad(fn, interVal = 50 ) {
-    const maxTime = 3000;
-    let timer = 0;
-    return new Promise(resolve => {
-        const clockId = setInterval(() => {
-            timer += interVal;
-            const val = fn();
-            if (val) {
-                clearInterval(clockId);
-                resolve(val);
-            } else if (timer >= maxTime) {
-                console.error(`wait to load: ${fn.toString()} 超时!`);
-                clearInterval(clockId);
-                resolve(null);
-            }
-        }, interVal);
-    });
-}
-
 class Actions {
-    clickedIdx = 0;
-    btnStyle = 'color:red;border:1px solid #ccc;padding: 5px 10px;';
-    companyName = '';
     constructor() {
+        this.clickedIdx = 0;
+        this.btnStyle = 'color:red;border:1px solid #ccc;padding: 5px 10px;';
+        this.companyName = '';
         this.selector = this.getSelectorInfo();
         this.appendActions();
         this.appendMountEle();
+        new LoginPanel();
+    }
+    appendLoginPanel() {
+
     }
     appendMountEle() {
         $('body').prepend('<div id="app" class="spa-app"></div>')

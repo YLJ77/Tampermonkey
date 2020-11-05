@@ -1,7 +1,7 @@
 import axios from 'axios'
 import {message,Modal} from "ant-design-vue";
 
-axios.defaults.baseURL = 'http://127.0.0.1:3000';
+axios.defaults.baseURL = 'http://219.136.175.12:3000';
 
 function getHeader() {
     const token = localStorage.getItem('token');
